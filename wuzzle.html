@@ -435,6 +435,7 @@ function buildGD(){
 let gameCode,gameRef,myName,myPid;
 let curRound=0,selVal=null,answered=false,allLockedHandled=false;
 let pScores={},pNames={},gData=null;
+let gameStarted=false,lastRound=-1;
 
 function shuffle(a){var b=a.slice();for(var i=b.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=b[i];b[i]=b[j];b[j]=t;}return b;}
 function genCode(){var c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';return Array.from({length:4},()=>c[Math.floor(Math.random()*c.length)]).join('');}
