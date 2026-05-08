@@ -351,116 +351,38 @@ function confetti(){
 async function winePour(){
   return new Promise(res=>{
     var el=document.createElement('div');
-    el.style.cssText='position:fixed;inset:0;z-index:500;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;pointer-events:none;';
+    el.style.position='fixed';el.style.inset='0';el.style.zIndex='500';
+    el.style.overflow='hidden';el.style.display='flex';
+    el.style.flexDirection='column';el.style.justifyContent='flex-end';
+    el.style.pointerEvents='none';
     var fill=document.createElement('div');
-    fill.style.cssText='background:linear-gradient(180deg,#9a2550 0%,#7a1f3d 40%,#4a0f25 100%);width:100%;height:0;animation:pour 1.4s cubic-bezier(.4,0,.2,1) forwards;';
+    fill.style.background='linear-gradient(180deg,#9a2550 0%,#7a1f3d 40%,#4a0f25 100%)';
+    fill.style.width='100%';fill.style.height='0';
+    fill.style.animation='pour 1.4s cubic-bezier(.4,0,.2,1) forwards';
     var ov=document.createElement('div');
-    ov.style.cssText='position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;animation:fadeIn .4s .9s ease forwards;';
-    ov.innerHTML='<div style="font-family:'Playfair Display',serif;font-size:52px;color:#f5c842;letter-spacing:12px;text-shadow:0 0 40px rgba(245,200,66,.4);">WUZZLE</div><div style="font-size:11px;letter-spacing:5px;color:rgba(255,220,180,.7);margin-top:6px;text-transform:uppercase;">The Wine Puzzle</div>';
+    ov.style.position='absolute';ov.style.inset='0';
+    ov.style.display='flex';ov.style.flexDirection='column';
+    ov.style.alignItems='center';ov.style.justifyContent='center';
+    ov.style.opacity='0';ov.style.animation='fadeIn .4s .9s ease forwards';
+    var t1=document.createElement('div');
+    t1.style.fontFamily='Georgia,serif';t1.style.fontSize='52px';
+    t1.style.color='#f5c842';t1.style.letterSpacing='12px';
+    t1.style.textShadow='0 0 40px rgba(245,200,66,.4)';
+    t1.textContent='WUZZLE';
+    var t2=document.createElement('div');
+    t2.style.fontSize='11px';t2.style.letterSpacing='5px';
+    t2.style.color='rgba(255,220,180,.7)';t2.style.marginTop='6px';
+    t2.style.textTransform='uppercase';
+    t2.textContent='The Wine Puzzle';
+    ov.appendChild(t1);ov.appendChild(t2);
     el.appendChild(fill);el.appendChild(ov);document.body.appendChild(el);
-    setTimeout(()=>{el.style.transition='opacity .8s ease';el.style.opacity='0';setTimeout(()=>{el.remove();res();},850);},2400);
+    setTimeout(()=>{
+      el.style.transition='opacity .8s ease';el.style.opacity='0';
+      setTimeout(()=>{el.remove();res();},850);
+    },2400);
   });
 }
 
-function goHost(){document.getElementById('landing').style.display='none';document.getElementById('host-view').style.display='block';}
-function goPlayer(){
-  document.getElementById('landing').style.display='none';
-  document.getElementById('player-view').style.display='flex';
-  document.getElementById('join-screen').style.display='flex';
-  var p=new URLSearchParams(window.location.search);
-  if(p.get('code'))document.getElementById('jcode').value=p.get('code').toUpperCase();
-}
-
-function buildGD(){
-  var d={};
-  ['f','g','c','r','v','w'].forEach(k=>{
-    var cor=document.getElementById(k+'0').value.trim();
-    d[k]={correct:cor,opts:shuffle([cor,document.getElementById(k+'1').value.trim(),document.getElementById(k+'2').value.trim()])};
-  });
-  return d;
-}
-
-function hostLaunch(){
-  gameCode=genCode();gData=buildGD();
-  gameRef=db.ref('games/'+gameCode);
-  gameRef.set({status:'lobby',round:0,revealed:false,gameData:gData,players:{},answers:{},scores:{}});
-  document.getElementById('hcode').textContent=gameCode;
-  document.getElementById('hjoin').textContent=window.location.href.split('?')[0]+'?code='+gameCode;
-  document.getElementById('hlaunch').classList.add('hidden');
-  document.getElementById('hstart').classList.remove('hidden');
-  document.getElementById('wine-setup').style.opacity='.55';
-  document.getElementById('wine-setup').style.pointerEvents='none';
-  gameRef.child('players').on('value',s=>{pNames=s.val()||{};updateHPList();});
-  toast('Room created! Code: '+gameCode);
-}
-
-function updateHPList(){
-  var ns=Object.values(pNames);
-  document.getElementById('hpcount').textContent=ns.length+' player'+(ns.length!==1?'s':'')+' joined';
-  document.getElementById('hplist').innerHTML=ns.map(n=>'<div class="p-chip"><div class="p-dot"></div>'+n+'</div>').join('');
-  var b=document.getElementById('hstart');
-  ns.length>0?b.removeAttribute('disabled'):b.setAttribute('disabled','');
-}
-
-function hostStart(){
-  if(!Object.keys(pNames).length){toast('Wait for at least one player!',true);return;}
-  curRound=0;Object.keys(pNames).forEach(id=>pScores[id]=[]);
-  gameRef.update({status:'playing',round:0,revealed:false,scores:pScores});
-  document.getElementById('hstart').classList.add('hidden');
-  document.getElementById('lobby-box').style.display='none';
-  var hs=document.getElementById('h-status');hs.style.display='block';
-  buildHostGrid();
-  gameRef.child('answers').on('value',s=>updateHostDots(s.val()||{}));
-}
-
-function buildHostGrid(){
-  var g=document.getElementById('hs-grid');g.innerHTML='';
-  Object.entries(pNames).forEach(([pid,name])=>{
-    var col=document.createElement('div');col.className='hs-col';col.id='hc-'+pid;
-    col.innerHTML='<div class="hs-nm">'+name+'</div><div class="hs-dots">'+Array.from({length:6},(_,i)=>'<div class="hd" id="hd-'+pid+'-'+i+'"></div>').join('')+'</div>';
-    g.appendChild(col);
-  });
-}
-
-function updateHostDots(answers){
-  Object.keys(pNames).forEach(pid=>{
-    for(var i=0;i<6;i++){
-      var d=document.getElementById('hd-'+pid+'-'+i);if(!d)continue;
-      var sc=pScores[pid]||[];
-      if(i<curRound) d.className='hd '+(sc[i]?'ok':'no');
-      else if(i===curRound) d.className='hd '+((answers[curRound]||{})[pid]?'l':'p');
-      else d.className='hd';
-    }
-  });
-}
-
-function playerJoin(){
-  var code=document.getElementById('jcode').value.trim().toUpperCase();
-  var name=document.getElementById('jname').value.trim();
-  var err=document.getElementById('jerr');
-  if(!code||code.length!==4){err.textContent='Please enter a 4-letter code';return;}
-  if(!name){err.textContent='Please enter your name';return;}
-  err.textContent='';
-  db.ref('games/'+code).once('value',s=>{
-    if(!s.exists()){err.textContent='Game not found — check the code';return;}
-    if(s.val().status!=='lobby'){err.textContent='This game has already started';return;}
-    gameCode=code;myName=name;myPid=name.toLowerCase().replace(/\s+/g,'_')+'_'+Date.now();
-    gameRef=db.ref('games/'+code);
-    gameRef.child('players/'+myPid).set(name);
-    gameRef.child('players/'+myPid).onDisconnect().remove();
-    gData=s.val().gameData;
-    document.getElementById('join-screen').style.display='none';
-    document.getElementById('waiting-screen').style.display='flex';
-    document.getElementById('wname').textContent="You're in as "+myName+" 🎉";
-    gameRef.child('players').on('value',ps=>{
-      pNames=ps.val()||{};
-      document.getElementById('wps').innerHTML=Object.values(pNames).map(n=>'<div class="p-chip"><div class="p-dot"></div>'+n+'</div>').join('');
-    });
-    gameRef.on('value',gs=>onGameState(gs.val()));
-  });
-}
-
-var lastRound=-1,gameStarted=false;
 async function onGameState(gv){
   if(!gv)return;
   gData=gv.gameData||gData;
