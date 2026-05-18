@@ -479,6 +479,8 @@ function updateHPList(){
   document.getElementById('hpcount').textContent=ns.length+' player'+(ns.length!==1?'s':'')+' joined';
   document.getElementById('hplist').innerHTML=ns.map(n=>'<div class="p-chip"><div class="p-dot"></div>'+n+'</div>').join('');
   var b=document.getElementById('hstart');
+  // Don't reset button if game already marked ready
+  if(b.disabled&&b.style.background)return;
   ns.length>0?b.removeAttribute('disabled'):b.setAttribute('disabled','');
 }
 function buildHostGrid(){
