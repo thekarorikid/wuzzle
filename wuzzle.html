@@ -211,6 +211,12 @@ body{font-family:'Lato',sans-serif;background:var(--bg);min-height:100vh;color:v
 .pdot{width:10px;height:10px;border-radius:50%;transition:all .4s;flex-shrink:0;}
 .rlbls{display:flex;justify-content:space-around;padding:0 10px 6px;}
 .rlbl{font-size:8px;text-align:center;width:44px;letter-spacing:.5px;}
+
+.host-bar{background:#fff7f4;border-bottom:1.5px solid #f0c0b0;padding:8px 14px;display:none;flex-wrap:wrap;gap:8px;align-items:center;}
+.hbar-label{font-size:10px;letter-spacing:2px;color:var(--wine);text-transform:uppercase;font-weight:700;flex-shrink:0;}
+.hbar-btn{background:var(--wine);border:none;border-radius:10px;padding:8px 16px;color:#fff;font-family:'Playfair Display',serif;font-size:13px;cursor:pointer;letter-spacing:1px;transition:all .2s;}
+.hbar-btn:hover{background:var(--wine2);}
+.hbar-btn:active{transform:scale(.97);}
 </style>
 </head>
 <body>
@@ -223,7 +229,7 @@ body{font-family:'Lato',sans-serif;background:var(--bg);min-height:100vh;color:v
     <div class="role-card" onclick="goHost()">
       <div class="r-icon">&#x1F3A9;</div>
       <div class="r-title">I'm the Host</div>
-      <div class="r-desc">Set up the wine and share a code &mdash; then sit back</div>
+      <div class="r-desc">Set up the wine and share the code &mdash; players run the game</div>
     </div>
     <div class="role-card" onclick="goPlayer()">
       <div class="r-icon">&#x1F377;</div>
@@ -234,7 +240,7 @@ body{font-family:'Lato',sans-serif;background:var(--bg);min-height:100vh;color:v
 </div>
 
 <div id="host-view">
-  <div class="h-hdr"><div class="h-logo">WUZZLE</div><div class="h-sub">Host Control Panel</div></div>
+  <div class="h-hdr"><div class="h-logo">WUZZLE</div><div class="h-sub">Maker Control Panel</div></div>
   <div class="h-grid" id="wine-setup">
     <div class="h-card"><div class="h-ctit">&#x1F33F; Flavour</div>
       <div class="f-row"><span class="f-lbl">Correct</span><input class="f-inp" id="f0" value="Blackcurrant"><span class="c-tag">&#x2713;</span></div>
@@ -284,7 +290,7 @@ body{font-family:'Lato',sans-serif;background:var(--bg);min-height:100vh;color:v
   </div>
   <div class="h-acts">
     <button class="btn-w" id="hlaunch" onclick="hostLaunch()">Create Game Room</button>
-    <button class="btn-w hidden" id="hstart" onclick="hostStart()">Start Game &rarr;</button>
+    <button class="btn-w hidden" id="hstart" onclick="hostStart()">Game Ready &rarr;</button>
   </div>
 </div>
 
@@ -305,8 +311,22 @@ body{font-family:'Lato',sans-serif;background:var(--bg);min-height:100vh;color:v
     <div class="w-icon">&#x1F377;</div>
     <div class="w-logo">WUZZLE</div>
     <div class="w-name" id="wname"></div>
-    <div class="w-stat">Waiting for host to start</div>
+    <div class="w-stat" id="wstat">Waiting for game to be ready...</div>
     <div class="w-ps" id="wps"></div>
+    <div id="whost-area" style="margin-top:24px;width:100%;max-width:320px;display:none;">
+      <button id="whost-btn" onclick="toggleHostRole()"
+        style="display:flex;align-items:center;gap:8px;background:#fff;border:2px solid var(--border);border-radius:20px;padding:10px 20px;cursor:pointer;font-family:Lato,sans-serif;font-size:13px;color:var(--muted);transition:all .2s;margin:0 auto 16px;width:auto;">
+        <span id="whost-dot" style="width:10px;height:10px;border-radius:50%;background:var(--border);flex-shrink:0;"></span>
+        <span id="whost-lbl">Be the Host</span>
+      </button>
+      <div id="wstart-wrap" style="display:none;text-align:center;">
+        <button onclick="hostPlayerStart()"
+          style="width:100%;background:var(--wine);border:none;border-radius:12px;padding:16px;color:#fff;font-family:'Playfair Display',serif;font-size:18px;cursor:pointer;letter-spacing:2px;">
+          Start the Game &rarr;
+        </button>
+        <div style="font-size:11px;color:var(--dim);margin-top:8px;letter-spacing:1px;">Everyone's phones will update</div>
+      </div>
+    </div>
   </div>
   <div id="game-screen"></div>
 </div>
@@ -363,13 +383,12 @@ function hostLaunch(){
 }
 function hostStart(){
   if(!Object.keys(pNames).length){toast('Wait for at least one player!',true);return;}
-  curRound=0;Object.keys(pNames).forEach(id=>pScores[id]=[]);
-  gameRef.update({status:'playing',round:0,revealed:false,scores:pScores});
-  document.getElementById('hstart').classList.add('hidden');
-  document.getElementById('lobby-box').style.display='none';
-  var hs=document.getElementById('h-status');hs.style.display='block';
-  buildHostGrid();
-  gameRef.child('answers').on('value',s=>updateHostDots(s.val()||{}));
+  gameRef.update({hostReady:true});
+  var b=document.getElementById('hstart');
+  b.textContent='Game is ready!';
+  b.style.background='var(--green)';
+  b.disabled=true;
+  toast('Done! Players can now start the game.');
 }
 function playerJoin(){
   var code=document.getElementById('jcode').value.trim().toUpperCase();
@@ -396,6 +415,65 @@ function playerJoin(){
     gameRef.on('value',gs=>onGameState(gs.val()));
   });
 }
+
+let isHost=false;
+
+function toggleHostRole(){
+  if(!gameRef)return;
+  if(isHost){
+    isHost=false;
+    gameRef.child('hostPid').remove();
+    updateHostBtn();
+  } else {
+    gameRef.child('hostPid').transaction(function(cur){
+      if(cur===null)return myPid;
+      return undefined;
+    },function(err,committed){
+      if(committed){isHost=true;updateHostBtn();toast('You are now the Host');}
+      else toast('Someone else is already the Host',true);
+    });
+  }
+}
+
+function updateHostBtn(){
+  var btn=document.getElementById('whost-btn');
+  var dot=document.getElementById('whost-dot');
+  var lbl=document.getElementById('whost-lbl');
+  var sw=document.getElementById('wstart-wrap');
+  if(!btn)return;
+  if(isHost){
+    btn.style.cssText=btn.style.cssText+'border-color:var(--wine)!important;background:#fdeef2!important;color:var(--wine)!important;';
+    btn.style.borderColor='var(--wine)';btn.style.background='#fdeef2';btn.style.color='var(--wine)';
+    dot.style.background='var(--wine)';lbl.textContent='Host: ON';
+    if(sw)sw.style.display='block';
+  } else {
+    btn.style.borderColor='var(--border)';btn.style.background='#fff';btn.style.color='var(--muted)';
+    dot.style.background='var(--border)';lbl.textContent='Be the Host';
+    if(sw)sw.style.display='none';
+  }
+  var hbar=document.getElementById('host-bar');
+  if(hbar)hbar.style.display=isHost?'flex':'none';
+}
+
+function hostPlayerStart(){
+  if(!isHost||!gameRef)return;
+  curRound=0;
+  Object.keys(pNames).forEach(function(id){pScores[id]=[];});
+  gameRef.update({status:'playing',round:0,revealed:false,scores:pScores});
+}
+
+function hostSkipToReveal(){
+  if(!isHost||!gameRef)return;
+  // Fetch current state and trigger reveal
+  gameRef.once('value',function(s){
+    var gv=s.val();
+    if(gv&&!allLockedHandled){
+      allLockedHandled=true;
+      doReveal(gv);
+    }
+  });
+}
+
 function updateHPList(){
   var ns=Object.values(pNames);
   document.getElementById('hpcount').textContent=ns.length+' player'+(ns.length!==1?'s':'')+' joined';
@@ -490,6 +568,18 @@ async function onGameState(gv){
   if(!gv)return;
   gData=gv.gameData||gData;
   pNames=gv.players||pNames;
+
+  // Sync host identity
+  if(gv.hostPid===myPid&&!isHost){isHost=true;updateHostBtn();}
+  else if(gv.hostPid&&gv.hostPid!==myPid&&isHost){isHost=false;updateHostBtn();}
+
+  // Show host toggle area once maker marks game ready
+  if(gv.hostReady){
+    var wa=document.getElementById('whost-area');
+    if(wa)wa.style.display='block';
+    var ws=document.getElementById('wstat');
+    if(ws)ws.textContent='Game is ready! Tap below to be the Host.';
+  }
 
   if(gv.status==='playing'){
     if(!gameStarted){
@@ -598,8 +688,10 @@ function renderRound(gv){
     var pips=Array.from({length:6},(_,s)=>'<div class="pip'+(s>=sc.length?'':(sc[s]?' sc':' ms'))+'"></div>').join('');
     return '<div class="s-row"><div class="s-av" style="background:'+AVCS[pi%AVCS.length]+'">'+nm[0]+'</div><div class="s-nm'+(pid===myPid?' me':'')+'">'+nm+(pid===myPid?' (you)':'')+'</div><div class="pips">'+pips+'</div></div>';
   }).join('');
+  var hostBarHtml = isHost ? '<div class="host-bar" id="host-bar" style="display:flex;"><span class="hbar-label">Host</span><button class="hbar-btn" onclick="hostSkipToReveal()">Reveal Now</button></div>' : '<div id="host-bar"></div>';
   scr.innerHTML=
     '<div class="g-hdr"><div class="g-logo">WUZZLE</div><div class="g-rlbl">Round '+(curRound+1)+' of 6 &nbsp;&middot;&nbsp; '+r.label+'</div></div>'+
+    hostBarHtml+
     buildSB(gv)+
     '<div class="prog-bar">'+dots+'</div>'+
     '<div class="rlbls">'+lbls+'</div>'+
