@@ -400,7 +400,9 @@ function playerJoin(){
   err.textContent='';
   db.ref('games/'+code).once('value',s=>{
     if(!s.exists()){err.textContent='Game not found — check the code';return;}
-    if(s.val().status!=='lobby'){err.textContent='This game has already started';return;}
+    var gst=s.val().status;
+    if(gst==='final'){err.textContent='This game has already been played';return;}
+    if(gst!=='lobby'){err.textContent='This game has already started';return;}
     gameCode=code;myName=name;myPid=name.toLowerCase().replace(/\s+/g,'_')+'_'+Date.now();
     gameRef=db.ref('games/'+code);
     gameRef.child('players/'+myPid).set(name);
@@ -690,7 +692,7 @@ function renderRound(gv){
     var pips=Array.from({length:6},(_,s)=>'<div class="pip'+(s>=sc.length?'':(sc[s]?' sc':' ms'))+'"></div>').join('');
     return '<div class="s-row"><div class="s-av" style="background:'+AVCS[pi%AVCS.length]+'">'+nm[0]+'</div><div class="s-nm'+(pid===myPid?' me':'')+'">'+nm+(pid===myPid?' (you)':'')+'</div><div class="pips">'+pips+'</div></div>';
   }).join('');
-  var hostBarHtml = isHost ? '<div class="host-bar" id="host-bar" style="display:flex;"><span class="hbar-label">Host</span><button class="hbar-btn" onclick="hostSkipToReveal()">Reveal Now</button></div>' : '<div id="host-bar"></div>';
+  var hostBarHtml = '<div id="host-bar"></div>';
   scr.innerHTML=
     '<div class="g-hdr"><div class="g-logo">WUZZLE</div><div class="g-rlbl">Round '+(curRound+1)+' of 6 &nbsp;&middot;&nbsp; '+r.label+'</div></div>'+
     hostBarHtml+
