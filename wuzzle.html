@@ -217,6 +217,34 @@ body{font-family:'Lato',sans-serif;background:var(--bg);min-height:100vh;color:v
 .hbar-btn{background:var(--wine);border:none;border-radius:10px;padding:8px 16px;color:#fff;font-family:'Playfair Display',serif;font-size:13px;cursor:pointer;letter-spacing:1px;transition:all .2s;}
 .hbar-btn:hover{background:var(--wine2);}
 .hbar-btn:active{transform:scale(.97);}
+
+/* RESULTS TABLE */
+.results-table{margin:6px 14px;background:#fff;border:1.5px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.05);}
+.rt-hdr{display:grid;grid-template-columns:1fr 1fr;background:var(--wine);padding:8px 14px;}
+.rt-hdr-cell{font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.8);text-transform:uppercase;font-weight:700;}
+.rt-row{display:grid;grid-template-columns:1fr 1fr;padding:10px 14px;border-bottom:1px solid var(--bg3);}
+.rt-row:last-child{border-bottom:none;}
+.rt-round{font-size:9px;letter-spacing:1px;color:var(--dim);text-transform:uppercase;grid-column:1/-1;margin-bottom:4px;}
+.rt-cell{font-size:13px;font-weight:700;}
+.rt-cell.correct{color:var(--green);}
+.rt-cell.wrong{color:var(--red);}
+.rt-cell.answer{color:var(--green);}
+
+/* HOST REVEAL PANEL */
+.host-reveal-panel{margin:6px 14px;background:#fff7f4;border:2px solid var(--wine);border-radius:16px;padding:16px;text-align:center;}
+.hrp-title{font-family:'Playfair Display',serif;font-size:18px;color:var(--wine);margin-bottom:6px;}
+.hrp-sub{font-size:12px;color:var(--dim);margin-bottom:14px;letter-spacing:1px;}
+.hrp-btn{width:100%;background:var(--wine);border:none;border-radius:12px;padding:15px;color:#fff;font-family:'Playfair Display',serif;font-size:16px;cursor:pointer;letter-spacing:2px;transition:all .2s;}
+.hrp-btn:hover{background:var(--wine2);}
+.hrp-btn:active{transform:scale(.97);}
+
+/* NEXT QUESTION BUTTON */
+.next-q-btn{display:block;width:calc(100% - 28px);margin:8px 14px;background:var(--wine);border:none;border-radius:14px;padding:15px;color:#fff;font-family:'Playfair Display',serif;font-size:15px;cursor:pointer;letter-spacing:2px;transition:all .2s;text-align:center;}
+.next-q-btn:hover{background:var(--wine2);}
+.next-q-btn:active{transform:scale(.97);}
+
+/* WAITING MSG */
+.wait-msg{margin:6px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:14px;text-align:center;font-size:12px;color:var(--dim);letter-spacing:1px;}
 </style>
 </head>
 <body>
@@ -228,13 +256,13 @@ body{font-family:'Lato',sans-serif;background:var(--bg);min-height:100vh;color:v
   <div class="role-cards">
     <div class="role-card" onclick="goHost()">
       <div class="r-icon">&#x1F3A9;</div>
-      <div class="r-title">I'm the Host</div>
-      <div class="r-desc">Set up the wine and share the code &mdash; players run the game</div>
+      <div class="r-title">Maker</div>
+      <div class="r-desc">Build a game, share the code &mdash; then step back</div>
     </div>
     <div class="role-card" onclick="goPlayer()">
       <div class="r-icon">&#x1F377;</div>
-      <div class="r-title">I'm a Player</div>
-      <div class="r-desc">Join with a code and play on your own phone</div>
+      <div class="r-title">Player</div>
+      <div class="r-desc">Join a game with a code and play</div>
     </div>
   </div>
 </div>
@@ -290,7 +318,7 @@ body{font-family:'Lato',sans-serif;background:var(--bg);min-height:100vh;color:v
   </div>
   <div class="h-acts">
     <button class="btn-w" id="hlaunch" onclick="hostLaunch()">Create Game Room</button>
-    <button class="btn-w hidden" id="hstart" onclick="hostStart()">Game Ready &rarr;</button>
+    <div id="hready-msg" style="display:none;flex:1;background:var(--green);border-radius:14px;padding:16px;color:#fff;font-family:'Playfair Display',serif;font-size:16px;letter-spacing:2px;text-align:center;">Game is live! Share the code above.</div>
   </div>
 </div>
 
@@ -311,7 +339,7 @@ body{font-family:'Lato',sans-serif;background:var(--bg);min-height:100vh;color:v
     <div class="w-icon">&#x1F377;</div>
     <div class="w-logo">WUZZLE</div>
     <div class="w-name" id="wname"></div>
-    <div class="w-stat" id="wstat">Waiting for game to be ready...</div>
+    <div class="w-stat" id="wstat">Waiting for the game to start...</div>
     <div class="w-ps" id="wps"></div>
     <div id="whost-area" style="margin-top:24px;width:100%;max-width:320px;display:none;">
       <button id="whost-btn" onclick="toggleHostRole()"
@@ -375,10 +403,12 @@ function hostLaunch(){
   document.getElementById('hcode').textContent=gameCode;
   document.getElementById('hjoin').textContent=window.location.href.split('?')[0]+'?code='+gameCode;
   document.getElementById('hlaunch').classList.add('hidden');
-  document.getElementById('hstart').classList.remove('hidden');
+  document.getElementById('hready-msg').style.display='block';
   document.getElementById('wine-setup').style.opacity='.55';
   document.getElementById('wine-setup').style.pointerEvents='none';
   gameRef.child('players').on('value',s=>{pNames=s.val()||{};updateHPList();});
+  // Game is immediately ready for players to join
+  gameRef.update({hostReady:true});
   toast('Room created! Code: '+gameCode);
 }
 function hostStart(){
@@ -419,7 +449,7 @@ function playerJoin(){
   });
 }
 
-let isHost=false,makerGameReady=false;
+let isHost=false,makerGameReady=false,revealShownForRound=false;
 
 function toggleHostRole(){
   if(!gameRef)return;
@@ -577,12 +607,12 @@ async function onGameState(gv){
   if(gv.hostPid===myPid&&!isHost){isHost=true;updateHostBtn();}
   else if(gv.hostPid&&gv.hostPid!==myPid&&isHost){isHost=false;updateHostBtn();}
 
-  // Show host toggle area once maker marks game ready
+  // Show host toggle always (hostReady set on room creation)
   if(gv.hostReady){
     var wa=document.getElementById('whost-area');
     if(wa)wa.style.display='block';
     var ws=document.getElementById('wstat');
-    if(ws)ws.textContent='Game is ready! Tap below to be the Host.';
+    if(ws&&ws.textContent.indexOf('Waiting')>-1)ws.textContent='Waiting for the game to start...';
   }
 
   if(gv.status==='playing'){
@@ -595,7 +625,7 @@ async function onGameState(gv){
       renderRound(gv);lastRound=curRound;return;
     }
     if(gv.round!==lastRound){
-      lastRound=gv.round;curRound=gv.round;answered=false;selVal=null;allLockedHandled=false;
+      lastRound=gv.round;curRound=gv.round;answered=false;selVal=null;allLockedHandled=false;revealShownForRound=false;
       var scr=document.getElementById('game-screen');
       scr.style.transition='opacity .5s';scr.style.opacity='0';
       await sleep(500);renderRound(gv);scr.style.opacity='1';return;
@@ -604,6 +634,35 @@ async function onGameState(gv){
       updateSB(gv.answers||{},gv.scores||{});
       if(!allLockedHandled)checkAllLocked(gv);
     }
+  } else if(gv.status==='revealed'){
+    // Non-host players: show their result when host triggers reveal
+    if(!revealShownForRound){
+      revealShownForRound=true;
+      var ra=(gv.answers||{})[gv.round]||{};
+      var cor=gData[ROUNDS[gv.round].key].correct;
+      var myAns=ra[myPid]||null;
+      var correct=(myAns===cor);
+      // Update scores
+      var ns2=Object.assign({},pScores);
+      Object.keys(gv.players||{}).forEach(function(pid){
+        if(!ns2[pid])ns2[pid]=[];
+        ns2[pid][gv.round]=(ra[pid]===cor);
+      });
+      pScores=ns2;
+      // Show reveal overlay then results
+      var ro=document.getElementById('reveal-overlay');
+      var ae=document.getElementById('rv-ans');
+      var re2=document.getElementById('rv-rnd');
+      ae.textContent=cor;re2.textContent=ROUNDS[gv.round].label.toUpperCase();
+      ae.style.animation='none';ae.offsetHeight;
+      ae.style.animation='revealIn .6s .1s cubic-bezier(.34,1.56,.64,1) both';
+      ro.style.display='flex';ro.style.opacity='1';ro.style.transition='';
+      if(correct)confetti();
+      await sleep(2800);
+      ro.style.transition='opacity .7s';ro.style.opacity='0';await sleep(750);
+      ro.style.display='none';ro.style.opacity='1';ro.style.transition='';
+      showRoundResult(cor,myAns,correct);
+    }
   } else if(gv.status==='final'){
     await sleep(400);renderFinal(gv);
   }
@@ -611,14 +670,66 @@ async function onGameState(gv){
 
 function checkAllLocked(gv){
   var ra=(gv.answers||{})[curRound]||{};
-  var pids=Object.keys(pNames);
+  var pids=Object.keys(gv.players||{});
   if(pids.length>0&&pids.every(pid=>ra[pid])){
     allLockedHandled=true;
-    doReveal(gv);
+    // Show host reveal panel, show others waiting
+    showAllLockedState(gv);
   }
 }
 
-async function doReveal(gv){
+function showAllLockedState(gv){
+  // Remove waiting message if present
+  var wm=document.getElementById('wait-for-others');
+  if(wm)wm.remove();
+  var cfm=document.getElementById('cbtn');
+  if(cfm)cfm.style.display='none';
+  // Host sees reveal button, others see waiting
+  if(isHost){
+    var panel=document.createElement('div');
+    panel.className='host-reveal-panel';panel.id='host-reveal-panel';
+    panel.innerHTML='<div class="hrp-title">All locked in!</div>'+
+      '<div class="hrp-sub">Everyone has answered &mdash; ready to reveal</div>'+
+      '<button class="hrp-btn" onclick="hostDoReveal()">Reveal Answer</button>';
+    var opts=document.getElementById('opts');
+    if(opts)opts.after(panel);
+  } else {
+    var wt=document.createElement('div');
+    wt.className='wait-msg';wt.id='wait-for-reveal';
+    wt.textContent='All locked in — waiting for host to reveal...';
+    var opts2=document.getElementById('opts');
+    if(opts2)opts2.after(wt);
+  }
+}
+
+function hostDoReveal(){
+  if(!isHost||!gameRef)return;
+  // Remove reveal panel
+  var panel=document.getElementById('host-reveal-panel');
+  if(panel)panel.remove();
+  // Fetch live state and run reveal
+  gameRef.once('value',function(s){
+    var gv=s.val();
+    if(gv)runReveal(gv);
+  });
+}
+
+async function runReveal(gv){
+  // Score this round
+  var rk=ROUNDS[curRound].key, cor=gData[rk].correct;
+  var ra=(gv.answers||{})[curRound]||{};
+  var myAns=ra[myPid]||null;
+  var correct=(myAns===cor);
+
+  // Update local scores
+  var ns=Object.assign({},pScores);
+  Object.keys(gv.players||{}).forEach(function(pid){
+    if(!ns[pid])ns[pid]=[];
+    ns[pid][curRound]=(ra[pid]===cor);
+  });
+  pScores=ns;
+
+  // Show countdown overlay
   var ov=document.getElementById('all-locked-overlay');
   var ce=document.getElementById('al-count');
   ov.style.display='flex';
@@ -629,55 +740,89 @@ async function doReveal(gv){
   }
   ov.style.display='none';
 
-  // Score this round
-  var rk=ROUNDS[curRound].key,cor=gData[rk].correct;
-  var ra=(gv.answers||{})[curRound]||{};
-  var ns={...pScores};
-  Object.keys(pNames).forEach(pid=>{if(!ns[pid])ns[pid]=[];ns[pid][curRound]=(ra[pid]===cor);});
-  pScores=ns;
+  // Write scores to Firebase
+  if(gameRef)gameRef.child('scores').set(pScores);
 
-  // Show reveal
+  // Show reveal overlay
   var ro=document.getElementById('reveal-overlay');
   var ae=document.getElementById('rv-ans');
   var re=document.getElementById('rv-rnd');
-  ae.textContent=cor;re.textContent=ROUNDS[curRound].label.toUpperCase();
-  ae.style.animation='none';ae.offsetHeight;ae.style.animation='revealIn .6s .1s cubic-bezier(.34,1.56,.64,1) both';
+  ae.textContent=cor;
+  re.textContent=ROUNDS[curRound].label.toUpperCase();
+  ae.style.animation='none';ae.offsetHeight;
+  ae.style.animation='revealIn .6s .1s cubic-bezier(.34,1.56,.64,1) both';
   ro.style.display='flex';ro.style.opacity='1';ro.style.transition='';
-
-  if(myPid&&pScores[myPid]&&pScores[myPid][curRound]){await sleep(500);confetti();}
+  if(correct){await sleep(500);confetti();}
   await sleep(2800);
-  ro.style.transition='opacity .7s';ro.style.opacity='0';await sleep(750);
+  ro.style.transition='opacity .7s';ro.style.opacity='0';
+  await sleep(750);
   ro.style.display='none';ro.style.opacity='1';ro.style.transition='';
 
-  if(gameRef)gameRef.child('scores').set(pScores);
+  // Show results row + next button
+  showRoundResult(cor, myAns, correct);
 
-  await sleep(600);
-  if(curRound<5){
-    if(gameRef)gameRef.update({status:'playing',round:curRound+1,revealed:false,scores:pScores});
-  } else {
-    if(gameRef)gameRef.update({status:'final',round:6,scores:pScores});
+  // Advance Firebase state (so other players' screens update)
+  if(gameRef){
+    var nextRound=curRound+1;
+    if(nextRound>=6){
+      gameRef.update({status:'final',round:6,scores:pScores});
+    } else {
+      gameRef.update({status:'revealed',round:curRound,scores:pScores});
+    }
   }
 }
 
-function buildSB(gv){
-  var pids=Object.keys(pNames);
-  var cols=pids.map((pid,pi)=>{
-    var nm=pNames[pid]||pid;
-    return '<div class="sb-col"><div class="sb-nm">'+nm+'</div><div class="sb-dots">'+Array.from({length:6},(_,i)=>'<div class="sd" id="sd-'+pid+'-'+i+'"></div>').join('')+'</div></div>';
-  }).join('');
-  return '<div class="status-bar"><div class="sb-label">Players</div><div class="sb-grid">'+cols+'</div></div>';
-}
+function showRoundResult(correctAnswer, myAnswer, correct){
+  // Remove waiting message
+  var wm=document.getElementById('wait-for-reveal');
+  if(wm)wm.remove();
 
-function updateSB(answers,scores){
-  Object.keys(pNames).forEach(pid=>{
-    for(var i=0;i<6;i++){
-      var d=document.getElementById('sd-'+pid+'-'+i);if(!d)continue;
-      var sc=(scores[pid]||[]);
-      if(i<curRound) d.className='sd '+(sc[i]?'ok':'no');
-      else if(i===curRound) d.className='sd '+((answers[curRound]||{})[pid]?'l':'p');
-      else d.className='sd';
+  // Add row to results table (create if needed)
+  var tbl=document.getElementById('results-table');
+  if(!tbl){
+    tbl=document.createElement('div');
+    tbl.className='results-table';tbl.id='results-table';
+    tbl.innerHTML='<div class="rt-hdr"><div class="rt-hdr-cell">Your Answer</div><div class="rt-hdr-cell">Correct Answer</div></div>';
+    var scr=document.getElementById('game-screen');
+    // Insert before scoreboard
+    var sb=scr.querySelector('.scoreboard');
+    if(sb)sb.before(tbl);else scr.appendChild(tbl);
+  }
+  var row=document.createElement('div');
+  row.className='rt-row';
+  row.innerHTML='<div class="rt-round">'+ROUNDS[curRound].label+'</div>'+
+    '<div class="rt-cell '+(correct?'correct':'wrong')+'">'+(myAnswer||'No answer')+'</div>'+
+    '<div class="rt-cell answer">'+correctAnswer+'</div>';
+  tbl.appendChild(row);
+
+  // Show Next Question button (or end game)
+  var isLast=(curRound>=5);
+  var nextBtn=document.createElement('button');
+  nextBtn.className='next-q-btn';
+  nextBtn.textContent=isLast?'See Final Results':'Next Question →';
+  nextBtn.onclick=function(){
+    nextBtn.disabled=true;
+    nextBtn.textContent='Loading...';
+    nextBtn.style.opacity='.5';
+    if(isLast){
+      if(gameRef)gameRef.update({status:'final',round:6,scores:pScores});
+    } else {
+      if(gameRef){
+        var nextR=curRound+1;
+        gameRef.child('status').transaction(function(cur){
+          if(cur==='revealed')return 'playing';
+          return undefined;
+        },function(err,committed){
+          if(committed){
+            gameRef.update({status:'playing',round:nextR,revealed:false,scores:pScores});
+          }
+        });
+      }
     }
-  });
+  };
+
+  var tbl2=document.getElementById('results-table');
+  if(tbl2)tbl2.after(nextBtn);
 }
 
 function renderRound(gv){
@@ -692,10 +837,9 @@ function renderRound(gv){
     var pips=Array.from({length:6},(_,s)=>'<div class="pip'+(s>=sc.length?'':(sc[s]?' sc':' ms'))+'"></div>').join('');
     return '<div class="s-row"><div class="s-av" style="background:'+AVCS[pi%AVCS.length]+'">'+nm[0]+'</div><div class="s-nm'+(pid===myPid?' me':'')+'">'+nm+(pid===myPid?' (you)':'')+'</div><div class="pips">'+pips+'</div></div>';
   }).join('');
-  var hostBarHtml = '<div id="host-bar"></div>';
   scr.innerHTML=
     '<div class="g-hdr"><div class="g-logo">WUZZLE</div><div class="g-rlbl">Round '+(curRound+1)+' of 6 &nbsp;&middot;&nbsp; '+r.label+'</div></div>'+
-    hostBarHtml+
+    '<div id="host-bar"></div>'+
     buildSB(gv)+
     '<div class="prog-bar">'+dots+'</div>'+
     '<div class="rlbls">'+lbls+'</div>'+
@@ -728,7 +872,13 @@ function lockIn(){
   document.querySelectorAll('.opt-btn').forEach(b=>{if(!b.classList.contains('sel'))b.classList.add('dim-opt');});
   var myDot=document.getElementById('sd-'+myPid+'-'+curRound);
   if(myDot)myDot.className='sd l';
+  // Write answer with MY pid only
   if(gameRef)gameRef.child('answers/'+curRound+'/'+myPid).set(selVal);
+  // Show waiting message
+  var wt=document.createElement('div');
+  wt.className='wait-msg';wt.id='wait-for-others';
+  wt.textContent='Answer locked in — waiting for other players...';
+  cb.parentElement.after(wt);
 }
 
 function renderFinal(gv){
