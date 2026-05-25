@@ -635,8 +635,8 @@ async function onGameState(gv){
       if(!allLockedHandled)checkAllLocked(gv);
     }
   } else if(gv.status==='revealed'){
-    // Non-host players: show their result when host triggers reveal
-    if(!revealShownForRound){
+    // Non-host players only: host already showed result via runReveal()
+    if(!isHost&&!revealShownForRound){
       revealShownForRound=true;
       var ra=(gv.answers||{})[gv.round]||{};
       var cor=gData[ROUNDS[gv.round].key].correct;
