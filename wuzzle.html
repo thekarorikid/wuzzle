@@ -825,6 +825,29 @@ function showRoundResult(correctAnswer, myAnswer, correct){
   if(tbl2)tbl2.after(nextBtn);
 }
 
+function buildSB(gv){
+  var pids=Object.keys(pNames);
+  var cols=pids.map((pid,pi)=>{
+    var nm=pNames[pid]||pid;
+    return '<div class="sb-col"><div class="sb-nm">'+nm+'</div><div class="sb-dots">'+
+      Array.from({length:6},(_,i)=>'<div class="sd" id="sd-'+pid+'-'+i+'"></div>').join('')+
+    '</div></div>';
+  }).join('');
+  return '<div class="status-bar"><div class="sb-label">Players</div><div class="sb-grid">'+cols+'</div></div>';
+}
+
+function updateSB(answers,scores){
+  Object.keys(pNames).forEach(pid=>{
+    for(var i=0;i<6;i++){
+      var d=document.getElementById('sd-'+pid+'-'+i);if(!d)continue;
+      var sc=(scores[pid]||[]);
+      if(i<curRound) d.className='sd '+(sc[i]?'ok':'no');
+      else if(i===curRound) d.className='sd '+((answers[curRound]||{})[pid]?'l':'p');
+      else d.className='sd';
+    }
+  });
+}
+
 function renderRound(gv){
   var r=ROUNDS[curRound],d=gData[r.key];
   var scr=document.getElementById('game-screen');scr.innerHTML='';
