@@ -433,7 +433,13 @@ function playerJoin(){
     var gst=s.val().status;
     if(gst==='final'){err.textContent='This game has already been played';return;}
     if(gst!=='lobby'){err.textContent='This game has already started';return;}
-    gameCode=code;myName=name;myPid=name.toLowerCase().replace(/\s+/g,'_')+'_'+Date.now();
+    gameCode=code;myName=name;
+    // Use sessionStorage to keep same ID if page reloads/reconnects
+    var storedPid=sessionStorage.getItem('wuzzle_pid_'+code);
+    myPid=storedPid||name.toLowerCase().replace(/\s+/g,'_')+'_'+Date.now();
+    sessionStorage.setItem('wuzzle_pid_'+code,myPid);
+    sessionStorage.setItem('wuzzle_code',code);
+    sessionStorage.setItem('wuzzle_name',name);
     gameRef=db.ref('games/'+code);
     gameRef.child('players/'+myPid).set(name);
     gameRef.child('players/'+myPid).onDisconnect().remove();
@@ -444,6 +450,13 @@ function playerJoin(){
     gameRef.child('players').on('value',ps=>{
       pNames=ps.val()||{};
       document.getElementById('wps').innerHTML=Object.values(pNames).map(n=>'<div class="p-chip"><div class="p-dot"></div>'+n+'</div>').join('');
+    });
+    // Re-register player name on reconnect (handles brief disconnects)
+    db.ref('.info/connected').on('value',function(snap){
+      if(snap.val()===true&&gameRef&&myPid){
+        gameRef.child('players/'+myPid).set(myName);
+        gameRef.child('players/'+myPid).onDisconnect().remove();
+      }
     });
     gameRef.on('value',gs=>onGameState(gs.val()));
   });
