@@ -539,8 +539,11 @@ function goPlayer(){
   document.getElementById('landing').style.display='none';
   document.getElementById('player-view').style.display='flex';
   document.getElementById('join-screen').style.display='flex';
+  // Only auto-fill from URL param, not from sessionStorage
   var p=new URLSearchParams(window.location.search);
   if(p.get('code'))document.getElementById('jcode').value=p.get('code').toUpperCase();
+  // Clear old session data so it doesn't interfere with new games
+  sessionStorage.removeItem('wuzzle_code');
 }
 function hostLaunch(){
   gameCode=genCode();gData=buildGD();
@@ -602,6 +605,17 @@ function playerJoin(){
       if(snap.val()===true&&gameRef&&myPid){
         gameRef.child('players/'+myPid).set(myName);
         gameRef.child('players/'+myPid).onDisconnect().remove();
+      }
+    });
+    // Watch players list to keep score grid updated with all players
+    gameRef.child('players').on('value',function(ps){
+      pNames=ps.val()||pNames;
+      var sgw=document.getElementById('score-grid-wrap');
+      if(sgw&&gameRef){
+        gameRef.once('value',function(s){
+          var gv=s.val();
+          if(gv)sgw.innerHTML=buildScoreGrid(gv);
+        });
       }
     });
     gameRef.on('value',gs=>onGameState(gs.val()));
