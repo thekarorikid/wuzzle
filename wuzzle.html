@@ -570,6 +570,85 @@ function hostStart(){
   b.disabled=true;
   toast('Done! Players can now start the game.');
 }
+function findPlayerByName(players,name){
+  var lower=name.toLowerCase().trim();
+  return Object.keys(players).find(function(pid){
+    return (players[pid]||'').toLowerCase().trim()===lower;
+  })||null;
+}
+
+function showJoinPrompt(title,message,confirmLabel,onConfirm,cancelLabel,onCancel){
+  var ex=document.getElementById('join-prompt');if(ex)ex.remove();
+  var d=document.createElement('div');d.id='join-prompt';
+  d.style.cssText='margin-top:16px;background:var(--bg3);border:1.5px solid var(--border);border-radius:16px;padding:18px;text-align:center;';
+  d.innerHTML='<div style="font-family:Georgia,serif;font-size:16px;color:var(--wine);margin-bottom:6px;font-weight:700;">'+title+'</div>'+
+    '<div style="font-size:13px;color:var(--muted);margin-bottom:16px;">'+message+'</div>'+
+    '<button id="jp-ok" style="width:100%;background:var(--wine);border:none;border-radius:10px;padding:13px;color:#fff;font-size:15px;cursor:pointer;margin-bottom:8px;">'+confirmLabel+'</button>'+
+    '<button id="jp-no" style="width:100%;background:transparent;border:1.5px solid var(--border);border-radius:10px;padding:11px;color:var(--muted);font-size:13px;cursor:pointer;">'+cancelLabel+'</button>';
+  var card=document.querySelector('.j-card');if(card)card.appendChild(d);
+  document.getElementById('jp-ok').onclick=function(){d.remove();onConfirm();};
+  document.getElementById('jp-no').onclick=function(){d.remove();onCancel();};
+}
+
+function setupGameListeners(gv){
+  document.getElementById('join-screen').style.display='none';
+  document.getElementById('waiting-screen').style.display='flex';
+  document.getElementById('wname').textContent="You're in as "+myName;
+  gameRef.child('players').on('value',function(ps){
+    pNames=ps.val()||pNames;
+    document.getElementById('wps').innerHTML=Object.values(pNames).map(function(n){
+      return '<div class="p-chip"><div class="p-dot"></div>'+n+'</div>';
+    }).join('');
+    var sgw=document.getElementById('score-grid-wrap');
+    if(sgw)gameRef.once('value',function(s2){var g=s2.val();if(g)sgw.innerHTML=buildScoreGrid(g);});
+  });
+  db.ref('.info/connected').on('value',function(snap){
+    if(snap.val()===true&&gameRef&&myPid){
+      gameRef.child('players/'+myPid).set(myName);
+      gameRef.child('players/'+myPid).onDisconnect().remove();
+    }
+  });
+  gameRef.on('value',function(gs){onGameState(gs.val());});
+}
+
+function connectAsExisting(code,name,existingPid,gv){
+  gameCode=code;myName=name;myPid=existingPid;
+  sessionStorage.setItem('wuzzle_pid_'+code,myPid);
+  sessionStorage.setItem('wuzzle_code',code);
+  sessionStorage.setItem('wuzzle_name',name);
+  gameRef=db.ref('games/'+code);
+  gameRef.child('players/'+myPid).set(name);
+  gameRef.child('players/'+myPid).onDisconnect().remove();
+  gData=gv.gameData||gData;
+  pScores=gv.scores||{};
+  setupGameListeners(gv);
+}
+
+function connectAsNew(code,name,gv){
+  gameCode=code;myName=name;
+  var stored=sessionStorage.getItem('wuzzle_pid_'+code);
+  myPid=stored||name.toLowerCase().replace(/\s+/g,'_')+'_'+Date.now();
+  sessionStorage.setItem('wuzzle_pid_'+code,myPid);
+  sessionStorage.setItem('wuzzle_code',code);
+  sessionStorage.setItem('wuzzle_name',name);
+  gameRef=db.ref('games/'+code);
+  gameRef.child('players/'+myPid).set(name);
+  gameRef.child('players/'+myPid).onDisconnect().remove();
+  gData=gv.gameData||gData;
+  pScores=gv.scores||{};
+  setupGameListeners(gv);
+}
+
+function connectAndView(code,name,gv){
+  gameCode=code;myName=name;gData=gv.gameData;
+  pNames=gv.players||{};pScores=gv.scores||{};
+  myPid=findPlayerByName(pNames,name)||'viewer_'+Date.now();
+  gameRef=db.ref('games/'+code);
+  document.getElementById('join-screen').style.display='none';
+  document.getElementById('game-screen').style.display='flex';
+  renderFinal(gv);
+}
+
 function playerJoin(){
   var code=document.getElementById('jcode').value.trim().toUpperCase();
   var name=document.getElementById('jname').value.trim();
@@ -577,106 +656,33 @@ function playerJoin(){
   if(!code||code.length!==4){err.textContent='Please enter a 4-letter code';return;}
   if(!name){err.textContent='Please enter your name';return;}
   err.textContent='';
-  db.ref('games/'+code).once('value',s=>{
-    if(!s.exists()){err.textContent='Game not found — check the code';return;}
-    var gst=s.val().status;
-    if(gst==='final'){err.textContent='This game has already been played';return;}
-    if(gst!=='lobby'){err.textContent='This game has already started';return;}
-    gameCode=code;myName=name;
-    // Use sessionStorage to keep same ID if page reloads/reconnects
-    var storedPid=sessionStorage.getItem('wuzzle_pid_'+code);
-    myPid=storedPid||name.toLowerCase().replace(/\s+/g,'_')+'_'+Date.now();
-    sessionStorage.setItem('wuzzle_pid_'+code,myPid);
-    sessionStorage.setItem('wuzzle_code',code);
-    sessionStorage.setItem('wuzzle_name',name);
-    gameRef=db.ref('games/'+code);
-    gameRef.child('players/'+myPid).set(name);
-    gameRef.child('players/'+myPid).onDisconnect().remove();
-    gData=s.val().gameData;
-    document.getElementById('join-screen').style.display='none';
-    document.getElementById('waiting-screen').style.display='flex';
-    document.getElementById('wname').textContent="You're in as "+name+" 🎉";
-    gameRef.child('players').on('value',ps=>{
-      pNames=ps.val()||{};
-      document.getElementById('wps').innerHTML=Object.values(pNames).map(n=>'<div class="p-chip"><div class="p-dot"></div>'+n+'</div>').join('');
-    });
-    // Re-register player name on reconnect (handles brief disconnects)
-    db.ref('.info/connected').on('value',function(snap){
-      if(snap.val()===true&&gameRef&&myPid){
-        gameRef.child('players/'+myPid).set(myName);
-        gameRef.child('players/'+myPid).onDisconnect().remove();
-      }
-    });
-    // Watch players list to keep score grid updated with all players
-    gameRef.child('players').on('value',function(ps){
-      pNames=ps.val()||pNames;
-      var sgw=document.getElementById('score-grid-wrap');
-      if(sgw&&gameRef){
-        gameRef.once('value',function(s){
-          var gv=s.val();
-          if(gv)sgw.innerHTML=buildScoreGrid(gv);
-        });
-      }
-    });
-    gameRef.on('value',gs=>onGameState(gs.val()));
-  });
-}
-
-let isHost=false,makerGameReady=false,revealShownForRound=false;
-
-function toggleHostRole(){
-  if(!gameRef)return;
-  if(isHost){
-    isHost=false;
-    gameRef.child('hostPid').remove();
-    updateHostBtn();
-  } else {
-    gameRef.child('hostPid').transaction(function(cur){
-      if(cur===null)return myPid;
-      return undefined;
-    },function(err,committed){
-      if(committed){isHost=true;updateHostBtn();toast('You are now the Host');}
-      else toast('Someone else is already the Host',true);
-    });
-  }
-}
-
-function updateHostBtn(){
-  var btn=document.getElementById('whost-btn');
-  var dot=document.getElementById('whost-dot');
-  var lbl=document.getElementById('whost-lbl');
-  var sw=document.getElementById('wstart-wrap');
-  if(!btn)return;
-  if(isHost){
-    btn.style.cssText=btn.style.cssText+'border-color:var(--wine)!important;background:#fdeef2!important;color:var(--wine)!important;';
-    btn.style.borderColor='var(--wine)';btn.style.background='#fdeef2';btn.style.color='var(--wine)';
-    dot.style.background='var(--wine)';lbl.textContent='Host: ON';
-    if(sw)sw.style.display='block';
-  } else {
-    btn.style.borderColor='var(--border)';btn.style.background='#fff';btn.style.color='var(--muted)';
-    dot.style.background='var(--border)';lbl.textContent='Be the Host';
-    if(sw)sw.style.display='none';
-  }
-  var hbar=document.getElementById('host-bar');
-  if(hbar)hbar.style.display=isHost?'flex':'none';
-}
-
-function hostPlayerStart(){
-  if(!isHost||!gameRef)return;
-  curRound=0;
-  Object.keys(pNames).forEach(function(id){pScores[id]=[];});
-  gameRef.update({status:'playing',round:0,revealed:false,scores:pScores});
-}
-
-function hostSkipToReveal(){
-  if(!isHost||!gameRef)return;
-  // Fetch current state and trigger reveal
-  gameRef.once('value',function(s){
-    var gv=s.val();
-    if(gv&&!allLockedHandled){
-      allLockedHandled=true;
-      doReveal(gv);
+  db.ref('games/'+code).once('value',function(s){
+    if(!s.exists()){err.textContent='Game not found - check the code';return;}
+    var gv=s.val(),gst=gv.status,players=gv.players||{};
+    var existingPid=findPlayerByName(players,name);
+    if(gst==='final'){
+      showJoinPrompt('This game has finished.','View results as '+name+'?','View Results',
+        function(){connectAndView(code,name,gv);},'Cancel',function(){});
+      return;
     }
+    if(gst==='playing'||gst==='revealed'){
+      if(existingPid){
+        showJoinPrompt('Welcome back!','Rejoin as '+name+'?','Rejoin Game',
+          function(){connectAsExisting(code,name,existingPid,gv);},'Cancel',function(){});
+      } else {
+        showJoinPrompt('Game in progress','Join as '+name+'?','Join Now',
+          function(){connectAsNew(code,name,gv);},'Cancel',function(){});
+      }
+      return;
+    }
+    if(existingPid){
+      showJoinPrompt(name+' is already registered.','Return as '+name+'?',"Yes, that's me",
+        function(){connectAsExisting(code,name,existingPid,gv);},'Use a different name',
+        function(){document.getElementById('jname').value='';document.getElementById('jname').focus();});
+      return;
+    }
+    // Normal new player joining lobby
+    connectAsNew(code,name,gv);
   });
 }
 
@@ -1213,8 +1219,25 @@ function renderFinal(gv){
   if(me.pts>=4)setTimeout(confetti,500);
 }
 
-window.addEventListener('DOMContentLoaded',()=>{
-  if(new URLSearchParams(window.location.search).get('code'))goPlayer();
+window.addEventListener('DOMContentLoaded',function(){
+  var urlCode=new URLSearchParams(window.location.search).get('code');
+  if(urlCode){goPlayer();document.getElementById('jcode').value=urlCode.toUpperCase();return;}
+  // Auto-restore if we were mid-game
+  var savedCode=sessionStorage.getItem('wuzzle_code');
+  var savedName=sessionStorage.getItem('wuzzle_name');
+  if(savedCode&&savedName){
+    db.ref('games/'+savedCode).once('value',function(s){
+      if(!s.exists()){sessionStorage.removeItem('wuzzle_code');return;}
+      var gv=s.val();
+      var savedPid=sessionStorage.getItem('wuzzle_pid_'+savedCode);
+      var existingPid=savedPid||findPlayerByName(gv.players||{},savedName);
+      if(!existingPid){sessionStorage.removeItem('wuzzle_code');return;}
+      goPlayer();
+      document.getElementById('jcode').value=savedCode;
+      document.getElementById('jname').value=savedName;
+      connectAsExisting(savedCode,savedName,existingPid,gv);
+    });
+  }
 });
 </script>
 </body>
