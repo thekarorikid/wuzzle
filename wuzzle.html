@@ -391,6 +391,23 @@ body { font-family: 'Lato', sans-serif; background: var(--bg); min-height: 100vh
 .toast   { position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(10px); background:var(--green); color:#fff; border-radius:14px; padding:12px 22px; font-size:13px; z-index:1000; opacity:0; transition:opacity .3s,transform .3s; white-space:nowrap; box-shadow:0 4px 20px rgba(0,0,0,.2); }
 .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
 .toast.err  { background:var(--red); }
+
+/* Next Question button */
+.next-q-btn {
+  display:block; width:calc(100% - 28px); margin:4px 14px 20px;
+  background:var(--wine); border:none; border-radius:14px; padding:17px;
+  color:#fff; font-family:Georgia,serif; font-size:16px; cursor:pointer;
+  letter-spacing:2px; transition:all .2s; animation:pop .4s ease both;
+}
+.next-q-btn:hover  { background:var(--wine2); box-shadow:0 6px 18px rgba(122,31,61,.3); }
+.next-q-btn:active { transform:scale(.97); }
+.next-q-btn:disabled { opacity:.45; cursor:not-allowed; transform:none; box-shadow:none; }
+
+/* Host start-game button in lobby */
+#hstart-wrap { max-width:960px; margin:0 auto; padding:0 0 24px; }
+.btn-start { width:100%; background:var(--green); border:none; border-radius:14px; padding:18px; color:#fff; font-family:Georgia,serif; font-size:17px; cursor:pointer; letter-spacing:2px; transition:all .2s; box-shadow:0 4px 18px rgba(45,122,79,.25); }
+.btn-start:hover { background:#1a6b3a; transform:translateY(-1px); box-shadow:0 8px 24px rgba(45,122,79,.35); }
+.btn-start:disabled { opacity:.4; cursor:not-allowed; transform:none; box-shadow:none; }
 </style>
 </head>
 <body>
@@ -465,6 +482,9 @@ body { font-family: 'Lato', sans-serif; background: var(--bg); min-height: 100vh
   <div class="h-acts">
     <button class="btn-w" id="hlaunch" onclick="hostLaunch()">Create Game Room</button>
     <div id="hready-msg" style="display:none;flex:1;background:var(--green);border-radius:14px;padding:16px;color:#fff;font-family:Georgia,serif;font-size:16px;letter-spacing:2px;text-align:center;">Game is live! Share the code above.</div>
+  </div>
+  <div id="hstart-wrap" style="display:none;max-width:960px;margin:12px auto 0;padding:0 0 28px;">
+    <button class="btn-start" id="hstart" onclick="hostStart()" disabled>Start the Game → (waiting for players)</button>
   </div>
 </div>
 
@@ -553,22 +573,21 @@ function hostLaunch(){
   document.getElementById('hjoin').textContent=window.location.href.split('?')[0]+'?code='+gameCode;
   document.getElementById('hlaunch').classList.add('hidden');
   document.getElementById('hready-msg').style.display='block';
+  document.getElementById('hstart-wrap').style.display='block';
   document.getElementById('wine-setup').style.opacity='.55';
   document.getElementById('wine-setup').style.pointerEvents='none';
   gameRef.child('players').on('value',s=>{pNames=s.val()||{};updateHPList();});
-  // Game is immediately ready for players to join
   gameRef.update({hostReady:true});
   toast('Room created! Code: '+gameCode);
 }
 function hostStart(){
-  if(!Object.keys(pNames).length){toast('Wait for at least one player!',true);return;}
+  var ns=Object.keys(pNames);
+  if(!ns.length){toast('Wait for at least one player to join!',true);return;}
   makerGameReady=true;
-  gameRef.update({hostReady:true});
   var b=document.getElementById('hstart');
-  b.textContent='Game is ready!';
-  b.style.background='var(--green)';
-  b.disabled=true;
-  toast('Done! Players can now start the game.');
+  b.textContent='Game started!';b.style.background='var(--green)';b.disabled=true;
+  gameRef.update({status:'playing',round:0,hostReady:true});
+  toast('Game started! Players\' screens will update now.');
 }
 function findPlayerByName(players,name){
   var lower=name.toLowerCase().trim();
@@ -691,8 +710,9 @@ function updateHPList(){
   document.getElementById('hpcount').textContent=ns.length+' player'+(ns.length!==1?'s':'')+' joined';
   document.getElementById('hplist').innerHTML=ns.map(n=>'<div class="p-chip"><div class="p-dot"></div>'+n+'</div>').join('');
   var b=document.getElementById('hstart');
-  if(makerGameReady)return;
-  ns.length>0?b.removeAttribute('disabled'):b.setAttribute('disabled','');
+  if(!b||makerGameReady)return;
+  if(ns.length>0){b.removeAttribute('disabled');b.textContent='Start the Game →';}
+  else{b.setAttribute('disabled','');b.textContent='Start the Game → (waiting for players)';}
 }
 function buildHostGrid(){
   var g=document.getElementById('hs-grid');g.innerHTML='';
@@ -722,11 +742,56 @@ function buildGD(){
   return d;
 }
 
+/* ── Player-side host role ── */
+function updateHostBtn(){
+  var dot=document.getElementById('whost-dot');
+  var lbl=document.getElementById('whost-lbl');
+  var sw=document.getElementById('wstart-wrap');
+  if(!dot||!lbl)return;
+  if(isHost){
+    dot.style.background='var(--green)';
+    lbl.textContent='You are the Host';
+    if(sw)sw.style.display='block';
+  } else {
+    dot.style.background='var(--border)';
+    lbl.textContent='Be the Host';
+    if(sw)sw.style.display='none';
+  }
+}
+function toggleHostRole(){
+  if(!gameRef||!myPid)return;
+  if(isHost){
+    // Give up host
+    gameRef.child('hostPid').remove();
+    isHost=false;updateHostBtn();
+  } else {
+    // Claim host
+    gameRef.child('hostPid').transaction(function(cur){
+      // Only claim if nobody else holds it
+      if(cur===null||cur===myPid)return myPid;
+      return undefined; // abort
+    },function(err,committed){
+      if(committed){isHost=true;updateHostBtn();toast('You are now the host!');}
+      else{toast('Someone else is already the host.',true);}
+    });
+  }
+}
+function hostPlayerStart(){
+  if(!isHost||!gameRef)return;
+  var pids=Object.keys(pNames);
+  if(!pids.length){toast('Wait for at least one player!',true);return;}
+  var sw=document.getElementById('wstart-wrap');
+  if(sw){sw.style.display='none';}
+  gameRef.update({status:'playing',round:0,hostReady:true});
+  toast('Game started!');
+}
+
 
 let gameCode,gameRef,myName,myPid;
 let curRound=0,selVal=null,answered=false,allLockedHandled=false;
 let pScores={},pNames={},gData=null;
 let gameStarted=false,lastRound=-1;
+let isHost=false,makerGameReady=false,revealShownForRound=false,finalShown=false;
 
 function shuffle(a){var b=a.slice();for(var i=b.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=b[i];b[i]=b[j];b[j]=t;}return b;}
 function genCode(){var c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';return Array.from({length:4},()=>c[Math.floor(Math.random()*c.length)]).join('');}
@@ -805,6 +870,9 @@ async function onGameState(gv){
     }
     if(gv.round!==lastRound){
       lastRound=gv.round;curRound=gv.round;answered=false;selVal=null;allLockedHandled=false;revealShownForRound=false;
+      // Remove any previous next-btn or waiting message
+      var ob=document.querySelector('.next-q-btn');if(ob)ob.remove();
+      var ow=document.getElementById('waiting-next-msg');if(ow)ow.remove();
       var scr=document.getElementById('game-screen');
       scr.style.transition='opacity .5s';scr.style.opacity='0';
       await sleep(500);renderRound(gv);scr.style.opacity='1';return;
@@ -843,7 +911,7 @@ async function onGameState(gv){
       showRoundResult(cor,myAns,correct);
     }
   } else if(gv.status==='final'){
-    await sleep(400);renderFinal(gv);
+    if(!finalShown){finalShown=true;await sleep(400);renderFinal(gv);}
   }
 }
 
@@ -980,19 +1048,19 @@ function showRoundResult(correctAnswer, myAnswer, correct){
     '<div style="padding:9px 10px;font-size:13px;font-weight:700;color:var(--green);">'+correctAnswer+'</div>';
   tbl.appendChild(row);
 
-  // Show Next Question button (or end game)
+  // Show Next Question button (host only) or waiting message
   var isLast=(curRound>=5);
-  var nextBtn=document.createElement('button');
-  nextBtn.className='next-q-btn';
-  nextBtn.textContent=isLast?'See Final Results':'Next Question →';
-  nextBtn.onclick=function(){
-    nextBtn.disabled=true;
-    nextBtn.textContent='Loading...';
-    nextBtn.style.opacity='.5';
-    if(isLast){
-      if(gameRef)gameRef.update({status:'final',round:6,scores:pScores});
-    } else {
-      if(gameRef){
+  var tbl2=document.getElementById('results-table');
+  if(isHost){
+    var nextBtn=document.createElement('button');
+    nextBtn.className='next-q-btn';
+    nextBtn.textContent=isLast?'See Final Results →':'Next Question →';
+    nextBtn.onclick=function(){
+      nextBtn.disabled=true;
+      nextBtn.textContent='Loading...';
+      if(isLast){
+        gameRef.update({status:'final',round:6,scores:pScores});
+      } else {
         var nextR=curRound+1;
         gameRef.child('status').transaction(function(cur){
           if(cur==='revealed')return 'playing';
@@ -1000,14 +1068,20 @@ function showRoundResult(correctAnswer, myAnswer, correct){
         },function(err,committed){
           if(committed){
             gameRef.update({status:'playing',round:nextR,revealed:false,scores:pScores});
+          } else {
+            nextBtn.disabled=false;nextBtn.textContent='Next Question →';
           }
         });
       }
-    }
-  };
-
-  var tbl2=document.getElementById('results-table');
-  if(tbl2)tbl2.after(nextBtn);
+    };
+    if(tbl2)tbl2.after(nextBtn);
+  } else {
+    var waitMsg=document.createElement('div');
+    waitMsg.id='waiting-next-msg';
+    waitMsg.style.cssText='margin:8px 14px 20px;text-align:center;font-size:12px;color:var(--dim);letter-spacing:2px;text-transform:uppercase;animation:pulse 2s ease-in-out infinite;';
+    waitMsg.textContent='Waiting for host to continue...';
+    if(tbl2)tbl2.after(waitMsg);
+  }
 }
 
 function getGridCols(numPlayers){
@@ -1021,14 +1095,15 @@ function buildScoreGrid(gv){
   var answers=gv.answers||{};
   var cols=getGridCols(pids.length);
   var roundLabels=['Flavour','Grape','Country','Region','Vintage','Winery'];
+  // Use local curRound (which is always in sync with what's rendered)
+  var activeRound=curRound;
   
   // Header row
   var hdrs='<div class="sg-corner">Players</div>';
   for(var i=0;i<6;i++){
-    var cls='sg-col-hdr'+(i===curRound?' active':'');
+    var cls='sg-col-hdr'+(i===activeRound?' active':'');
     var label=roundLabels[i];
-    // If this round has been answered, show the correct answer instead
-    if(i<curRound&&gData){
+    if(i<activeRound&&gData){
       var keys=['f','g','c','r','v','w'];
       label=gData[keys[i]].correct;
       cls='sg-col-hdr answered';
@@ -1038,23 +1113,21 @@ function buildScoreGrid(gv){
   
   // Player rows
   var rows='';
-  pids.forEach(function(pid,pi){
+  pids.forEach(function(pid){
     var name=(gv.players||{})[pid]||pid;
     var sc=scores[pid]||[];
-    // Name dot state
-    var curAns=(answers[curRound]||{})[pid];
+    var curAns=(answers[activeRound]||{})[pid];
     var nameDotCls=curAns?'sg-name-dot locked':'sg-name-dot thinking';
-    if(curRound>0&&sc.length>0) nameDotCls='sg-name-dot done';
     
     var row='<div class="sg-player-name"><div class="'+nameDotCls+'"></div>'+
       (pid===myPid?'<strong>'+name+'</strong>':name)+'</div>';
     
     for(var i=0;i<6;i++){
       var dotCls='sg-dot';
-      if(i<curRound){
+      if(i<activeRound){
         dotCls='sg-dot '+(sc[i]?'correct':'wrong');
-      } else if(i===curRound){
-        var ans=(answers[curRound]||{})[pid];
+      } else if(i===activeRound){
+        var ans=(answers[activeRound]||{})[pid];
         dotCls='sg-dot '+(ans?'locked':'thinking');
       }
       row+='<div class="sg-cell"><div class="'+dotCls+'"></div></div>';
@@ -1195,9 +1268,11 @@ function renderFinal(gv){
   
   // Leaderboard rows
   var lbRows=tots.map(function(p,i){
+    var nameColor=p.me?'var(--wine)':'var(--muted)';
+    var nameWeight=p.me?'700':'400';
     return '<div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--bg3);">'+
       '<div style="width:28px;text-align:center;font-size:'+(i===0?'18':'13')+'px;color:'+(i===0?'var(--gold)':'var(--dim)')+';">'+(i===0?'★':(i+1))+'</div>'+
-      '<div style="flex:1;font-size:14px;color:'+(p.me?'var(--wine)':'var(--muted)');+';font-weight:'+(p.me?'700':'400')+';">'+p.name+(p.me?' (you)':'')+'</div>'+
+      '<div style="flex:1;font-size:14px;color:'+nameColor+';font-weight:'+nameWeight+';">'+p.name+(p.me?' (you)':'')+'</div>'+
       '<div style="font-family:Georgia,serif;font-size:20px;color:var(--text);">'+p.pts+'<span style="font-size:11px;color:var(--dim);">/6</span></div>'+
     '</div>';
   }).join('');
