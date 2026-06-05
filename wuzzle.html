@@ -613,20 +613,34 @@ function setupGameListeners(gv){
   document.getElementById('join-screen').style.display='none';
   document.getElementById('waiting-screen').style.display='flex';
   document.getElementById('wname').textContent="You're in as "+myName;
-  gameRef.child('players').on('value',function(ps){
-    pNames=ps.val()||pNames;
-    document.getElementById('wps').innerHTML=Object.values(pNames).map(function(n){
-      return '<div class="p-chip"><div class="p-dot"></div>'+n+'</div>';
-    }).join('');
-    var sgw=document.getElementById('score-grid-wrap');
-    if(sgw)gameRef.once('value',function(s2){var g=s2.val();if(g)sgw.innerHTML=buildScoreGrid(g);});
-  });
+
+  // Write to persistent roster (never auto-removed) AND lobby players node
+  gameRef.child('roster/'+myPid).set(myName);
+  // Only remove from lobby players node on disconnect — NOT from roster
+  gameRef.child('players/'+myPid).set(myName);
+  gameRef.child('players/'+myPid).onDisconnect().remove();
+  // Re-register on reconnect
   db.ref('.info/connected').on('value',function(snap){
     if(snap.val()===true&&gameRef&&myPid){
       gameRef.child('players/'+myPid).set(myName);
       gameRef.child('players/'+myPid).onDisconnect().remove();
+      gameRef.child('roster/'+myPid).set(myName);
     }
   });
+
+  // Watch roster (persistent) for scoreboard, players (connected) for lobby count
+  gameRef.child('roster').on('value',function(rs){
+    pNames=rs.val()||pNames;
+    // Update waiting screen player chips
+    var ws=document.getElementById('wps');
+    if(ws)ws.innerHTML=Object.values(pNames).map(function(n){
+      return '<div class="p-chip"><div class="p-dot"></div>'+n+'</div>';
+    }).join('');
+    // Refresh score grid if in game
+    var sgw=document.getElementById('score-grid-wrap');
+    if(sgw)gameRef.once('value',function(s2){var g=s2.val();if(g)sgw.innerHTML=buildScoreGrid(g);});
+  });
+
   gameRef.on('value',function(gs){onGameState(gs.val());});
 }
 
@@ -636,10 +650,9 @@ function connectAsExisting(code,name,existingPid,gv){
   sessionStorage.setItem('wuzzle_code',code);
   sessionStorage.setItem('wuzzle_name',name);
   gameRef=db.ref('games/'+code);
-  gameRef.child('players/'+myPid).set(name);
-  gameRef.child('players/'+myPid).onDisconnect().remove();
   gData=gv.gameData||gData;
   pScores=gv.scores||{};
+  pNames=gv.roster||gv.players||{};
   setupGameListeners(gv);
 }
 
@@ -651,10 +664,9 @@ function connectAsNew(code,name,gv){
   sessionStorage.setItem('wuzzle_code',code);
   sessionStorage.setItem('wuzzle_name',name);
   gameRef=db.ref('games/'+code);
-  gameRef.child('players/'+myPid).set(name);
-  gameRef.child('players/'+myPid).onDisconnect().remove();
   gData=gv.gameData||gData;
   pScores=gv.scores||{};
+  pNames=gv.roster||gv.players||{};
   setupGameListeners(gv);
 }
 
@@ -677,7 +689,8 @@ function playerJoin(){
   err.textContent='';
   db.ref('games/'+code).once('value',function(s){
     if(!s.exists()){err.textContent='Game not found - check the code';return;}
-    var gv=s.val(),gst=gv.status,players=gv.players||{};
+    var gv=s.val(),gst=gv.status;
+    var players=Object.assign({},gv.roster||{},gv.players||{});
     var existingPid=findPlayerByName(players,name);
     if(gst==='final'){
       showJoinPrompt('This game has finished.','View results as '+name+'?','View Results',
@@ -845,7 +858,8 @@ async function winePour(){
 async function onGameState(gv){
   if(!gv)return;
   gData=gv.gameData||gData;
-  pNames=gv.players||pNames;
+  // Always use roster as the authoritative player list — it never shrinks on disconnect
+  if(gv.roster)pNames=gv.roster;
 
   // Sync host identity
   if(gv.hostPid===myPid&&!isHost){isHost=true;updateHostBtn();}
@@ -862,10 +876,14 @@ async function onGameState(gv){
   if(gv.status==='playing'){
     if(!gameStarted){
       gameStarted=true;
+      curRound=gv.round;answered=false;selVal=null;allLockedHandled=false;revealShownForRound=false;
+      pScores=gv.scores||{};
       document.getElementById('waiting-screen').style.display='none';
       document.getElementById('game-screen').style.display='flex';
-      await winePour();
-      curRound=gv.round;answered=false;selVal=null;allLockedHandled=false;
+      // Only show wine pour animation on first ever entry, not on rejoin mid-game
+      if(gv.round===0&&!gv.answers){
+        await winePour();
+      }
       renderRound(gv);lastRound=curRound;return;
     }
     if(gv.round!==lastRound){
@@ -882,6 +900,20 @@ async function onGameState(gv){
       if(!allLockedHandled)checkAllLocked(gv);
     }
   } else if(gv.status==='revealed'){
+    // If we just joined mid-game on a revealed round, catch up
+    if(!gameStarted){
+      gameStarted=true;
+      curRound=gv.round;lastRound=gv.round;
+      pScores=gv.scores||{};
+      document.getElementById('waiting-screen').style.display='none';
+      document.getElementById('game-screen').style.display='flex';
+      renderRound(gv);
+      // Mark as already revealed so we go straight to showing result
+      answered=true;revealShownForRound=true;
+      var cor2=gData[ROUNDS[curRound].key].correct;
+      showRoundResult(cor2,null,false);
+      return;
+    }
     // Non-host players only: host already showed result via runReveal()
     if(!isHost&&!revealShownForRound){
       revealShownForRound=true;
@@ -891,7 +923,7 @@ async function onGameState(gv){
       var correct=(myAns===cor);
       // Update scores
       var ns2=Object.assign({},pScores);
-      Object.keys(gv.players||{}).forEach(function(pid){
+      Object.keys(gv.roster||gv.players||{}).forEach(function(pid){
         if(!ns2[pid])ns2[pid]=[];
         ns2[pid][gv.round]=(ra[pid]===cor);
       });
@@ -966,7 +998,7 @@ async function runReveal(gv){
 
   // Update local scores
   var ns=Object.assign({},pScores);
-  Object.keys(gv.players||{}).forEach(function(pid){
+  Object.keys(gv.roster||gv.players||{}).forEach(function(pid){
     if(!ns[pid])ns[pid]=[];
     ns[pid][curRound]=(ra[pid]===cor);
   });
@@ -1090,7 +1122,9 @@ function getGridCols(numPlayers){
 }
 
 function buildScoreGrid(gv){
-  var pids=Object.keys(gv.players||{});
+  // Use roster (persistent) as the source — never shrinks on disconnect
+  var playerMap=gv.roster||gv.players||{};
+  var pids=Object.keys(playerMap);
   var scores=gv.scores||{};
   var answers=gv.answers||{};
   var cols=getGridCols(pids.length);
@@ -1114,7 +1148,7 @@ function buildScoreGrid(gv){
   // Player rows
   var rows='';
   pids.forEach(function(pid){
-    var name=(gv.players||{})[pid]||pid;
+    var name=playerMap[pid]||pid;
     var sc=scores[pid]||[];
     var curAns=(answers[activeRound]||{})[pid];
     var nameDotCls=curAns?'sg-name-dot locked':'sg-name-dot thinking';
@@ -1257,7 +1291,7 @@ function lockIn(){
 
 function renderFinal(gv){
   var scr=document.getElementById('game-screen');
-  var sc=gv.scores||{},pl=gv.players||{};
+  var sc=gv.scores||{},pl=gv.roster||gv.players||{};
   var tots=Object.keys(pl).map(function(pid){
     return {pid:pid,name:pl[pid],pts:(sc[pid]||[]).filter(Boolean).length,me:pid===myPid};
   }).sort(function(a,b){return b.pts-a.pts;});
