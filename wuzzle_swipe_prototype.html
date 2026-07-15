@@ -82,6 +82,16 @@ body{font-family:'Lato',sans-serif;background:#1a0a10;color:var(--text);}
 .fw-layer{position:fixed;inset:0;pointer-events:none;z-index:999;}
 .fw-p{position:absolute;width:6px;height:6px;border-radius:50%;top:0;left:0;}
 
+/* full clue-card library — always accessible, independent of gameplay */
+#libraryBtn{position:fixed;top:14px;left:14px;z-index:60;background:rgba(255,255,255,.88);border:1.5px solid var(--border);border-radius:20px;padding:8px 14px;font-size:12px;font-weight:700;color:var(--wine);font-family:'Lato',sans-serif;letter-spacing:.4px;box-shadow:0 3px 12px rgba(0,0,0,.14);cursor:pointer;}
+#libraryOverlay{position:fixed;inset:0;background:rgba(8,3,5,.95);z-index:200;display:none;flex-direction:column;}
+#libraryOverlay.open{display:flex;}
+#libraryClose{position:absolute;top:16px;right:16px;z-index:5;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:20px;line-height:1;cursor:pointer;}
+.lib-eyebrow{text-align:center;padding:20px 0 4px;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,220,190,.6);font-weight:700;}
+#libraryStrip{flex:1;display:flex;align-items:center;gap:20px;overflow-x:auto;scroll-snap-type:x mandatory;padding:14px 24px 34px;-webkit-overflow-scrolling:touch;}
+.lib-card-wrap{flex-shrink:0;width:min(84vw,380px);height:min(72vh,600px);scroll-snap-align:center;}
+.lib-card-wrap .clue-card{height:100%;box-shadow:0 18px 46px rgba(0,0,0,.4);}
+
 /* phones have much shorter cards than a laptop window — give the cloud
    the room back instead of letting a fixed-size header eat it */
 @media (max-height:750px){
@@ -91,6 +101,7 @@ body{font-family:'Lato',sans-serif;background:#1a0a10;color:var(--text);}
   .cc-name{font-size:18px;}
   .cc-letter{font-size:8px;}
   .p-hdr{padding:10px 18px 6px;}
+  #libraryBtn{top:10px;left:10px;padding:7px 12px;font-size:11px;}
 }
 </style>
 </head>
@@ -101,6 +112,13 @@ body{font-family:'Lato',sans-serif;background:#1a0a10;color:var(--text);}
   <div id="dots"></div>
 </div>
 <div class="fw-layer" id="fwLayer"></div>
+
+<button id="libraryBtn">&#128214; All clue cards</button>
+<div id="libraryOverlay">
+  <button id="libraryClose" aria-label="Close">&times;</button>
+  <div class="lib-eyebrow">Clue card library</div>
+  <div id="libraryStrip"></div>
+</div>
 
 <script>
 /* ============ 1. GRAPE WORD-CLOUD DATA ============
@@ -175,6 +193,76 @@ const GRAPES = {
       {w:"quince",t:1},{w:"savoury",t:1},{w:"ginger",t:1},{w:"loquat",t:1},{w:"smoke",t:1},{w:"cucumber",t:1},
       {w:"lees",t:1},{w:"earthy",t:1},{w:"toastiness",t:1},{w:"breezy",t:1}
     ]
+  },
+  sauvignon_blanc: {
+    label:"Sauvignon Blanc", bg:["#f6f1de","#e2d68f"], ink:"#20240f", accent:"#5c6b23",
+    words:[
+      {w:"gooseberry",t:5},{w:"grapefruit",t:5},
+      {w:"fresh",t:4},{w:"grassy",t:4},
+      {w:"ripe",t:3},{w:"limes",t:3},{w:"honeysuckle",t:3},
+      {w:"spicy",t:2},{w:"mineral",t:2},{w:"crisp",t:2},{w:"chilli/jalapeno",t:2},
+      {w:"tart",t:1},{w:"melon",t:1},{w:"capsicum",t:1},{w:"green peas",t:1},{w:"herbaceous",t:1},{w:"green",t:1},{w:"peppers",t:1}
+    ]
+  },
+  riesling: {
+    label:"Riesling", bg:["#f8f5ea","#e8ddb0"], ink:"#241f0a", accent:"#4a6b7a",
+    words:[
+      {w:"lemon",t:5},
+      {w:"apple",t:4},
+      {w:"steely",t:3},{w:"honey",t:3},{w:"citrus",t:3},{w:"limes",t:3},
+      {w:"honeysuckle",t:2},{w:"spice",t:2},{w:"aromatic",t:2},{w:"floral",t:2},{w:"mineral",t:2},{w:"marmalade",t:2},
+      {w:"ginger",t:1},{w:"zesty",t:1},{w:"summer",t:1},{w:"honeyed",t:1},{w:"herbal",t:1},{w:"bread",t:1},{w:"fresh",t:1},{w:"flower",t:1},{w:"gold",t:1},{w:"tropical",t:1},{w:"creamy",t:1}
+    ]
+  },
+  pinotage: {
+    label:"Pinotage", bg:["#5a1a1c","#2e0c0f"], ink:"#f2ddc8", accent:"#d9a05a",
+    words:[
+      {w:"plums",t:5},
+      {w:"cherry",t:4},{w:"vanilla",t:4},{w:"blackberry",t:4},
+      {w:"raspberries",t:3},{w:"chocolate",t:3},{w:"banana",t:3},{w:"blackcurrant",t:3},{w:"savoury",t:3},{w:"oak",t:3},{w:"berry",t:3},
+      {w:"earth",t:2},{w:"smoke",t:2},{w:"floral",t:2},{w:"creamy",t:2},{w:"game",t:2},
+      {w:"ginger",t:1},{w:"liquorice",t:1},{w:"musk",t:1},{w:"mint",t:1},{w:"fruity",t:1}
+    ]
+  },
+  chenin_blanc: {
+    label:"Chenin Blanc", bg:["#eef0b0","#c9d068"], ink:"#1c2408", accent:"#5a6b12",
+    words:[
+      {w:"apple",t:5},
+      {w:"honey",t:4},
+      {w:"bright",t:3},
+      {w:"pineapple",t:2},{w:"hay",t:2},{w:"honeydew",t:2},{w:"quince",t:2},{w:"tropical fruit",t:2},{w:"citrus",t:2},{w:"fresh",t:2},{w:"green",t:2},{w:"peach",t:2},{w:"apricot",t:2},
+      {w:"zingy",t:1},{w:"baked",t:1},{w:"crisp",t:1},{w:"gold",t:1},{w:"spice",t:1},{w:"pale",t:1}
+    ]
+  },
+  pinot_gris: {
+    label:"Pinot Gris", bg:["#faf8f2","#e6e2d2"], ink:"#1a1a1a", accent:"#7a8aa0",
+    words:[
+      {w:"pear",t:5},
+      {w:"peach",t:4},{w:"apple",t:4},
+      {w:"nut",t:3},{w:"creamy",t:3},{w:"lemon",t:3},{w:"honey",t:3},
+      {w:"floral",t:2},{w:"citrus",t:2},{w:"herb",t:2},{w:"oak",t:2},{w:"stone",t:2},{w:"sweet",t:2},
+      {w:"apricot",t:1},{w:"musk",t:1}
+    ]
+  },
+  semillon: {
+    label:"Sémillon", bg:["#f5efc0","#ddc667"], ink:"#241c05", accent:"#8a6a10",
+    words:[
+      {w:"lemon",t:5},
+      {w:"oak",t:4},
+      {w:"vanilla",t:3},{w:"straw",t:3},{w:"honey",t:3},
+      {w:"citrus",t:2},{w:"gold",t:2},{w:"apricot",t:2},{w:"spice",t:2},{w:"grapefruit",t:2},{w:"butterscotch",t:2},{w:"sweetness",t:2},{w:"herbs",t:2},{w:"bread",t:2},
+      {w:"leesy",t:1},{w:"pear",t:1},{w:"green",t:1},{w:"cream",t:1},{w:"toasty",t:1},{w:"bouquet",t:1},{w:"fragrance",t:1},{w:"perfume",t:1}
+    ]
+  },
+  gewurztraminer: {
+    label:"Gewürztraminer", bg:["#f3e9d0","#dcc088"], ink:"#2a180a", accent:"#8a3a4a",
+    words:[
+      {w:"spicy",t:5},
+      {w:"musk",t:4},{w:"roses",t:4},
+      {w:"citrus",t:3},{w:"lemony",t:3},{w:"orange",t:3},
+      {w:"lychees",t:2},{w:"exotic",t:2},{w:"toasty",t:2},{w:"spices",t:2},{w:"honeyed",t:2},{w:"pepper",t:2},{w:"fragrant",t:2},{w:"floral",t:2},{w:"oily",t:2},
+      {w:"sweetness",t:1},{w:"powdery",t:1},{w:"turkish delight",t:1},{w:"petals",t:1},{w:"scented",t:1}
+    ]
   }
 };
 
@@ -245,13 +333,14 @@ function renderCloud(container, grapeKey){
 
 /* ============ 3. WINE GLASS ============ */
 function glassSVG(colorTop, colorBottom){
+  const uid = colorTop.replace('#','') + Math.random().toString(36).slice(2,7);
   return `
   <svg viewBox="0 0 56 82">
     <defs>
-      <clipPath id="bowlClip-${colorTop.replace('#','')}">
+      <clipPath id="bowlClip-${uid}">
         <path d="M10 6 C10 30 16 42 28 42 C40 42 46 30 46 6 Z"/>
       </clipPath>
-      <linearGradient id="wineGrad-${colorTop.replace('#','')}" x1="0" y1="0" x2="0" y2="1">
+      <linearGradient id="wineGrad-${uid}" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stop-color="${colorTop}"/>
         <stop offset="100%" stop-color="${colorBottom}"/>
       </linearGradient>
@@ -260,12 +349,39 @@ function glassSVG(colorTop, colorBottom){
     <line x1="28" y1="42" x2="28" y2="68" stroke="rgba(255,255,255,.55)" stroke-width="1.4"/>
     <ellipse cx="28" cy="72" rx="12" ry="3.4" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.4"/>
     <line x1="17" y1="72" x2="39" y2="72" stroke="rgba(255,255,255,.55)" stroke-width="1.4"/>
-    <g class="wine-fill" clip-path="url(#bowlClip-${colorTop.replace('#','')})">
-      <rect x="6" y="15" width="44" height="30" fill="url(#wineGrad-${colorTop.replace('#','')})"/>
+    <g class="wine-fill" clip-path="url(#bowlClip-${uid})">
+      <rect x="6" y="15" width="44" height="30" fill="url(#wineGrad-${uid})"/>
       <ellipse cx="28" cy="15" rx="20" ry="3" fill="${colorTop}" opacity=".85"/>
     </g>
     <ellipse cx="19" cy="18" rx="3" ry="7" fill="rgba(255,255,255,.35)"/>
   </svg>`;
+}
+
+/* ============ 3b. SHARED CARD BUILDER ============
+   One function builds a clue-card element for ANY grape and wires up its
+   own render trigger (font-ready + real-size). Used by the in-game swipe
+   deck AND the full library, so there's exactly one place that defines
+   what a clue card looks like. */
+const fontsReadyPromise = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+function buildClueCardEl(key, eyebrowText){
+  const g = GRAPES[key];
+  const el = document.createElement('div');
+  el.className = 'clue-card';
+  el.style.background = `radial-gradient(circle at 50% 0%, ${g.bg[0]}, ${g.bg[1]} 75%)`;
+  el.innerHTML = `
+    <div class="cc-badge">
+      <div class="glass-wrap">${glassSVG(g.accent, g.bg[1])}</div>
+      <div class="cc-letter" style="color:${g.ink};opacity:.7">${eyebrowText||''}</div>
+      <div class="cc-name" style="color:${g.ink}">${g.label}</div>
+    </div>
+    <div class="cc-cloud"></div>`;
+  const cloudEl = el.querySelector('.cc-cloud');
+  const ro = new ResizeObserver(entries=>{
+    const r = entries[0].contentRect;
+    if(r.width>20 && r.height>20) fontsReadyPromise.then(()=> renderCloud(cloudEl, key));
+  });
+  ro.observe(cloudEl);
+  return el;
 }
 
 /* ============ 4. BUILD PANELS ============ */
@@ -281,16 +397,13 @@ QUESTION_GRAPES.forEach((key, i)=>{
   const panel = document.createElement('div');
   panel.className = 'panel clue-panel';
   panel.style.background = `radial-gradient(circle at 50% 0%, ${g.bg[0]}, ${g.bg[1]} 75%)`;
-  panel.innerHTML = `
-    <div class="p-hdr" style="color:${g.ink}"><div class="p-eyebrow">Clue card ${i+1} of 3</div></div>
-    <div class="clue-card" style="background:transparent;">
-      <div class="cc-badge">
-        <div class="glass-wrap">${glassSVG(g.accent, g.bg[1])}</div>
-        <div class="cc-letter" style="color:${g.ink};opacity:.7">Option ${String.fromCharCode(65+i)}</div>
-        <div class="cc-name" style="color:${g.ink}">${g.label}</div>
-      </div>
-      <div class="cc-cloud" id="cloud-${key}-${i}"></div>
-    </div>`;
+  const hdr = document.createElement('div');
+  hdr.className = 'p-hdr'; hdr.style.color = g.ink;
+  hdr.innerHTML = `<div class="p-eyebrow">Clue card ${i+1} of 3</div>`;
+  panel.appendChild(hdr);
+  const card = buildClueCardEl(key, `Option ${String.fromCharCode(65+i)}`);
+  card.style.background = 'transparent';
+  panel.appendChild(card);
   track.appendChild(panel);
 });
 
@@ -338,23 +451,25 @@ function updateDots(){
   });
 }
 
-/* render clouds only once we KNOW the real size is settled (not guessed).
-   ResizeObserver fires with the container's true post-layout size, and we
-   also wait for the display font so word-width measurements are correct.
-   This is what was missing before: rendering too early packed words into
-   a smaller phantom box and silently dropped whatever didn't fit. */
-function initClouds(){
-  QUESTION_GRAPES.forEach((key,i)=>{
-    const el = document.getElementById(`cloud-${key}-${i}`);
-    const ro = new ResizeObserver(entries=>{
-      const r = entries[0].contentRect;
-      if(r.width>20 && r.height>20) renderCloud(el, key);
-    });
-    ro.observe(el);
-  });
-}
-if(document.fonts && document.fonts.ready){ document.fonts.ready.then(initClouds); }
-else { window.addEventListener('load', initClouds); }
+/* ============ 4b. FULL CLUE CARD LIBRARY ============
+   Every grape we have data for, accessible any time via the fixed button
+   — not just the 3 tied to today's question. This is the "regular players
+   learn to spot the difference" piece: a place to study the cards outside
+   of gameplay. Add a new key to GRAPES and it appears here automatically. */
+const libBtn = document.getElementById('libraryBtn');
+const libOverlay = document.getElementById('libraryOverlay');
+const libStrip = document.getElementById('libraryStrip');
+
+Object.keys(GRAPES).forEach((key,i)=>{
+  const wrap = document.createElement('div');
+  wrap.className = 'lib-card-wrap';
+  const card = buildClueCardEl(key, `Grape variety · ${i+1} of ${Object.keys(GRAPES).length}`);
+  wrap.appendChild(card);
+  libStrip.appendChild(wrap);
+});
+
+libBtn.addEventListener('click', ()=> libOverlay.classList.add('open'));
+document.getElementById('libraryClose').addEventListener('click', ()=> libOverlay.classList.remove('open'));
 
 /* ============ 5. SWIPE MECHANICS ============ */
 let dragStartX=0, dragging=false, trackX=0;
