@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Wuzzle — Swipe Prototype</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400&family=Lato:wght@300;400;700&display=swap');
+
+:root{
+  --bg:#fdf6ef; --bg2:#fff9f4; --bg3:#f5ede3; --border:#ddc9b4;
+  --wine:#7a1f3d; --wine2:#9a2550; --gold:#c8860a; --gold2:#a06808;
+  --text:#2a1008; --muted:#7a4a30; --dim:#b08060;
+  --green:#2d7a4f; --red:#b02020; --blue:#1a5fa8; --yellow:#d4a010;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;user-select:none;}
+html,body{height:100%;overflow:hidden;}
+body{font-family:'Lato',sans-serif;background:#1a0a10;color:var(--text);}
+
+#stage{position:relative;width:100vw;height:100vh;overflow:hidden;background:var(--bg2);touch-action:none;}
+#track{position:absolute;top:0;left:0;height:100%;display:flex;will-change:transform;}
+.panel{width:100vw;height:100%;flex-shrink:0;position:relative;overflow:hidden;}
+
+/* ── shared chrome ── */
+.p-hdr{position:absolute;top:0;left:0;right:0;padding:14px 18px 10px;text-align:center;z-index:5;pointer-events:none;}
+.p-eyebrow{font-size:9px;letter-spacing:3px;text-transform:uppercase;opacity:.65;font-weight:700;}
+.p-title{font-family:'Playfair Display',serif;font-size:18px;margin-top:2px;}
+
+/* ── QUESTION panel ── */
+.q-panel{background:linear-gradient(180deg,#fdf0e4 0%,#f5d8c0 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;text-align:center;}
+.q-round{font-size:10px;letter-spacing:3px;color:var(--gold2);text-transform:uppercase;font-weight:700;margin-bottom:8px;}
+.q-text{font-family:'Playfair Display',serif;font-size:26px;color:var(--wine);line-height:1.35;max-width:420px;margin-bottom:34px;}
+.q-opts{display:flex;flex-direction:column;gap:12px;width:100%;max-width:360px;}
+.q-opt{background:#fff;border:2px solid var(--border);border-radius:16px;padding:16px 18px;font-size:15px;font-weight:700;color:var(--wine);box-shadow:0 2px 10px rgba(0,0,0,.06);}
+.swipe-hint{position:absolute;bottom:64px;left:0;right:0;display:flex;justify-content:space-between;padding:0 22px;font-size:10px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;pointer-events:none;}
+.swipe-hint span{display:flex;align-items:center;gap:5px;animation:nudge 2.2s ease-in-out infinite;}
+.swipe-hint .r span{animation-direction:reverse;}
+@keyframes nudge{0%,100%{transform:translateX(0);opacity:.55}50%{transform:translateX(-4px);opacity:1}}
+.r span{animation-name:nudger;}
+@keyframes nudger{0%,100%{transform:translateX(0);opacity:.55}50%{transform:translateX(4px);opacity:1}}
+
+/* ── dot rail ── */
+#dots{position:absolute;bottom:26px;left:0;right:0;display:flex;justify-content:center;gap:8px;z-index:20;}
+.dot{width:7px;height:7px;border-radius:50%;background:rgba(122,31,61,.22);transition:all .25s;}
+.dot.home{width:9px;height:9px;background:var(--wine);}
+.dot.active{background:var(--wine);transform:scale(1.35);}
+
+/* ── CLUE panels (tag-cloud cards) ── */
+.clue-panel{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:56px 16px 90px;}
+.clue-card{width:min(100%,380px);height:100%;max-height:640px;border-radius:26px;position:relative;box-shadow:0 18px 46px rgba(0,0,0,.28);overflow:hidden;display:flex;flex-direction:column;}
+.cc-badge{padding:18px 16px 10px;text-align:center;position:relative;z-index:3;}
+.cc-letter{font-size:10px;letter-spacing:4px;text-transform:uppercase;opacity:.6;font-weight:700;}
+.cc-name{font-family:'Playfair Display',serif;font-size:24px;margin-top:2px;letter-spacing:1px;}
+.cc-cloud{flex:1;position:relative;}
+.cc-cloud svg{width:100%;height:100%;display:block;}
+
+/* wine glass */
+.glass-wrap{width:56px;height:82px;margin:6px auto 0;position:relative;}
+.glass-wrap svg{width:100%;height:100%;overflow:visible;}
+.wine-fill{animation:slosh 2.6s ease-in-out infinite;transform-origin:28px 42px;transform-box:view-box;}
+@keyframes slosh{0%,100%{transform:rotate(-7deg) translateX(-1.2px);}50%{transform:rotate(7deg) translateX(1.2px);}}
+
+/* ── SCORE panel ── */
+.score-panel{background:linear-gradient(180deg,#3a0c1c 0%,#210812 100%);color:#fff;display:flex;flex-direction:column;padding:56px 18px 90px;}
+.sc-list{flex:1;display:flex;flex-direction:column;gap:10px;overflow-y:auto;}
+.sc-row{display:flex;align-items:center;gap:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:14px 16px;}
+.sc-light{width:16px;height:16px;border-radius:50%;flex-shrink:0;background:var(--blue);box-shadow:0 0 0 4px rgba(26,95,168,.18);transition:all .35s;}
+.sc-light.thinking{background:var(--blue);animation:pulse 1s ease-in-out infinite;box-shadow:0 0 0 4px rgba(26,95,168,.25);}
+.sc-light.locked{background:var(--yellow);box-shadow:0 0 10px rgba(212,160,16,.7),0 0 0 4px rgba(212,160,16,.2);}
+.sc-light.correct{background:var(--green);box-shadow:0 0 10px rgba(45,122,79,.8),0 0 0 4px rgba(45,122,79,.22);}
+.sc-light.wrong{background:var(--red);box-shadow:0 0 10px rgba(176,32,32,.8),0 0 0 4px rgba(176,32,32,.22);}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.55;transform:scale(.82)}}
+.sc-name{flex:1;font-size:15px;font-weight:700;}
+.sc-status{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;opacity:.6;}
+.sc-controls{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}
+.sc-btn{flex:1;min-width:120px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:12px;padding:11px;font-size:12px;letter-spacing:1px;cursor:pointer;font-family:'Lato',sans-serif;}
+.sc-btn:active{background:rgba(255,255,255,.2);}
+.countdown-num{font-family:'Playfair Display',serif;font-size:64px;text-align:center;color:#f5c842;line-height:1;margin:6px 0;animation:cdpop .5s ease both;}
+@keyframes cdpop{from{transform:scale(1.4);opacity:0}to{transform:scale(1);opacity:1}}
+
+/* fireworks */
+.fw-layer{position:fixed;inset:0;pointer-events:none;z-index:999;}
+.fw-p{position:absolute;width:6px;height:6px;border-radius:50%;top:0;left:0;}
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <div id="track"></div>
+  <div id="dots"></div>
+</div>
+<div class="fw-layer" id="fwLayer"></div>
+
+<script>
+/* ============ 1. GRAPE WORD-CLOUD DATA ============
+   Transcribed from the physical clue cards, tiers 1(smallest)–5(biggest),
+   matching the relative type sizes on the originals. This is the seed
+   dataset the generator draws from — swap in scraped review data later
+   without touching the render code. */
+const GRAPES = {
+  pinot_noir: {
+    label:"Pinot Noir", bg:["#6b1420","#3a0810"], ink:"#f4d9c8", accent:"#e8b4a0",
+    words:[
+      {w:"cherries",t:5},{w:"oak",t:4},{w:"smoke",t:4},{w:"mushroom",t:4},{w:"cake",t:4},
+      {w:"strawberries",t:4},{w:"savoury",t:4},{w:"earthy",t:4},
+      {w:"creamy",t:3},{w:"jammy",t:3},{w:"garnet",t:3},{w:"tamarillo",t:3},{w:"leather",t:3},
+      {w:"silky",t:3},{w:"guava",t:3},{w:"cranberry",t:3},{w:"spicy",t:3},{w:"raspberries",t:3},{w:"chocolate",t:3},
+      {w:"tar",t:2},{w:"anise",t:2},{w:"woody",t:2},{w:"soft",t:2},{w:"bitey",t:2},{w:"feral",t:2},
+      {w:"aromatic",t:2},{w:"ripe",t:2},{w:"vanilla",t:2},{w:"plum",t:2},{w:"clove",t:2},{w:"ruby",t:2},
+      {w:"meaty",t:2},{w:"berries",t:2},{w:"velvet",t:2},{w:"game",t:2},{w:"liquorice",t:2},
+      {w:"fresh",t:1},{w:"musk",t:1},{w:"bright",t:1},{w:"bacon",t:1},{w:"depth",t:1},{w:"floral",t:1},
+      {w:"spice",t:1},{w:"thyme",t:1},{w:"herbs",t:1},{w:"tart",t:1}
+    ]
+  },
+  merlot: {
+    label:"Merlot", bg:["#5a1220","#2c0a13"], ink:"#f6e2d4", accent:"#e0a9a0",
+    words:[
+      {w:"plum",t:5},
+      {w:"berries",t:4},{w:"soft",t:4},{w:"dark",t:4},{w:"dense",t:4},{w:"savoury",t:4},{w:"currant",t:4},
+      {w:"tobacco",t:3},{w:"leather",t:3},{w:"cinnamon",t:3},{w:"oak",t:3},{w:"blackcurrant",t:3},{w:"cherries",t:3},
+      {w:"cedar",t:3},{w:"rich",t:3},{w:"smooth",t:3},{w:"raspberries",t:3},{w:"chocolate",t:3},{w:"cigarbox",t:3},
+      {w:"blackberry",t:3},{w:"earthy",t:3},{w:"spice",t:3},{w:"fragrant",t:3},{w:"fruitcake",t:3},
+      {w:"herbal",t:2},{w:"pepper",t:2},{w:"liquorice",t:2},{w:"vanilla",t:2},{w:"inky",t:2},{w:"toast",t:2},
+      {w:"biscuits",t:2},{w:"tar",t:2},{w:"violet",t:2},{w:"mint",t:2},{w:"smoky",t:2},{w:"crimson",t:2},
+      {w:"cake",t:1},{w:"meaty",t:1},{w:"purple",t:1}
+    ]
+  },
+  cabernet_sauvignon: {
+    label:"Cabernet Sauvignon", bg:["#3a0f28","#1c0714"], ink:"#f2ddd6", accent:"#c8788f",
+    words:[
+      {w:"blackcurrant",t:5},
+      {w:"wood",t:4},{w:"garnet",t:4},{w:"tar",t:4},
+      {w:"chocolate",t:3},{w:"creamy",t:3},{w:"meaty",t:3},{w:"redfruit",t:3},{w:"plum",t:3},{w:"purple",t:3},
+      {w:"earth",t:3},{w:"tobacco",t:3},{w:"espresso",t:3},{w:"smoke",t:3},{w:"oak",t:3},{w:"candy",t:3},
+      {w:"liquorice",t:2},{w:"charcoal",t:2},{w:"vanilla",t:2},{w:"blueberry",t:2},{w:"jammy",t:2},{w:"leather",t:2},
+      {w:"bright",t:2},{w:"spice",t:2},{w:"fleshy",t:2},{w:"ruby",t:2},{w:"oregano",t:2},
+      {w:"pizza",t:1},{w:"burger",t:1},{w:"cedar",t:1},{w:"cherry",t:1},{w:"coconut",t:1},{w:"mint",t:1},{w:"toast",t:1}
+    ]
+  },
+  syrah: {
+    label:"Syrah", bg:["#4a0e18","#240709"], ink:"#f5ded2", accent:"#d99a7a",
+    words:[
+      {w:"pepper",t:5},
+      {w:"spice",t:4},{w:"blackfruits",t:4},{w:"cherries",t:4},{w:"oak",t:4},{w:"creamy",t:4},
+      {w:"plum",t:3},{w:"berries",t:3},{w:"spicy",t:3},{w:"leather",t:3},{w:"blackberry",t:3},{w:"red",t:3},
+      {w:"meaty",t:3},{w:"savoury",t:3},{w:"fragrant",t:3},{w:"deep",t:3},
+      {w:"vanilla",t:2},{w:"floral",t:2},{w:"musk",t:2},{w:"velvety",t:2},{w:"dark",t:2},{w:"anise",t:2},
+      {w:"petal",t:2},{w:"raspberries",t:2},{w:"purple",t:2},{w:"blueberry",t:2},{w:"aromatic",t:2},{w:"roses",t:2},
+      {w:"crisp",t:1},{w:"inky",t:1},{w:"currants",t:1},{w:"mint",t:1},{w:"tar",t:1},{w:"smoke",t:1},
+      {w:"crimson",t:1},{w:"earthy",t:1},{w:"herbs",t:1},{w:"liquorice",t:1},{w:"violets",t:1}
+    ]
+  },
+  viognier: {
+    label:"Viognier", bg:["#e8c86a","#c89a2e"], ink:"#3a2408", accent:"#7a5410",
+    words:[
+      {w:"apricots",t:5},
+      {w:"aromatic",t:4},{w:"sweet",t:4},{w:"stonefruit",t:4},{w:"nuts",t:4},{w:"spicy",t:4},{w:"oak",t:4},
+      {w:"warm",t:3},{w:"soft",t:3},{w:"silky",t:3},{w:"bright",t:3},{w:"tropical",t:3},{w:"smooth",t:3},
+      {w:"citrus",t:3},{w:"zest",t:3},{w:"fragrant",t:3},{w:"lemon",t:3},{w:"honey",t:3},{w:"oily",t:3},
+      {w:"floral",t:3},{w:"blossom",t:3},{w:"creamy",t:3},{w:"scented",t:3},
+      {w:"spice",t:2},{w:"exotic",t:2},{w:"mealy",t:2},{w:"salty",t:2},{w:"melon",t:2},{w:"biscuit",t:2},
+      {w:"grapefruit",t:2},{w:"butterscotch",t:2},{w:"tangy",t:2},{w:"musk",t:2},{w:"seasoned",t:2},{w:"orange",t:2},
+      {w:"yeast",t:2},{w:"vanillin",t:2},{w:"pear",t:2},{w:"gold",t:2},{w:"pineapple",t:2},
+      {w:"quince",t:1},{w:"savoury",t:1},{w:"ginger",t:1},{w:"loquat",t:1},{w:"smoke",t:1},{w:"cucumber",t:1},
+      {w:"lees",t:1},{w:"earthy",t:1},{w:"toastiness",t:1},{w:"breezy",t:1}
+    ]
+  }
+};
+
+/* ============ 2. TAG-CLOUD ENGINE ============
+   Spiral placement, same shape as classic d3-cloud: sort big→small, place
+   center-out, skip anything that collides. Deterministic per grape so the
+   card looks the same every render — important, because return players
+   need to learn to recognise the shape of "their" wines. */
+function seededRandom(seed){
+  let s = seed;
+  return function(){ s = (s*9301+49297)%233280; return s/233280; };
+}
+function measure(ctx, text, px){ ctx.font = `700 ${px}px 'Playfair Display', serif`; return ctx.measureText(text).width; }
+
+function renderCloud(container, grapeKey){
+  const g = GRAPES[grapeKey];
+  const W = container.clientWidth, H = container.clientHeight;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const rand = seededRandom([...grapeKey].reduce((a,c)=>a+c.charCodeAt(0),0));
+
+  const tierPx = {5:44,4:32,3:23,2:17,1:12.5};
+  const words = [...g.words].sort((a,b)=>b.t-a.t);
+  const placed = [];
+  const shades = [g.ink, g.accent, g.ink, g.accent];
+
+  words.forEach((item,i)=>{
+    const px = tierPx[item.t] * (0.94+rand()*0.14);
+    const w = measure(ctx, item.w, px) + 6;
+    const h = px*1.02;
+    let angle = 0, radius = 0, found=false, x=W/2, y=H/2, tries=0;
+    while(!found && tries < 380){
+      x = W/2 + radius*Math.cos(angle) - w/2;
+      y = H/2 + radius*Math.sin(angle)*0.72 - h/2;
+      const box = {x,y,w,h};
+      const overlaps = placed.some(p=>!(box.x+box.w<p.x-4||p.x+p.w+4<box.x||box.y+box.h<p.y-4||p.y+p.h+4<box.y));
+      const outOfBounds = box.x<6||box.y<40||box.x+box.w>W-6||box.y+box.h>H-14;
+      if(!overlaps && !outOfBounds){ found = true; }
+      else { angle += 0.42; radius += 2.1; tries++; }
+    }
+    if(!found) return; // drop word if truly no room (rare, small tiers only)
+    placed.push({x,y,w,h});
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x', x + w/2 - 3);
+    t.setAttribute('y', y + h*0.78);
+    t.setAttribute('text-anchor','middle');
+    t.setAttribute('font-family',"'Playfair Display', serif");
+    t.setAttribute('font-weight', item.t>=4?'700':'500');
+    t.setAttribute('font-size', px);
+    t.setAttribute('fill', shades[i%shades.length]);
+    t.setAttribute('opacity', 0.55 + item.t*0.09);
+    t.textContent = item.w;
+    svg.appendChild(t);
+  });
+  container.innerHTML = '';
+  container.appendChild(svg);
+}
+
+/* ============ 3. WINE GLASS ============ */
+function glassSVG(colorTop, colorBottom){
+  return `
+  <svg viewBox="0 0 56 82">
+    <defs>
+      <clipPath id="bowlClip-${colorTop.replace('#','')}">
+        <path d="M10 6 C10 30 16 42 28 42 C40 42 46 30 46 6 Z"/>
+      </clipPath>
+      <linearGradient id="wineGrad-${colorTop.replace('#','')}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${colorTop}"/>
+        <stop offset="100%" stop-color="${colorBottom}"/>
+      </linearGradient>
+    </defs>
+    <path d="M10 6 C10 30 16 42 28 42 C40 42 46 30 46 6 Z" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.4"/>
+    <line x1="28" y1="42" x2="28" y2="68" stroke="rgba(255,255,255,.55)" stroke-width="1.4"/>
+    <ellipse cx="28" cy="72" rx="12" ry="3.4" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.4"/>
+    <line x1="17" y1="72" x2="39" y2="72" stroke="rgba(255,255,255,.55)" stroke-width="1.4"/>
+    <g class="wine-fill" clip-path="url(#bowlClip-${colorTop.replace('#','')})">
+      <rect x="6" y="15" width="44" height="30" fill="url(#wineGrad-${colorTop.replace('#','')})"/>
+      <ellipse cx="28" cy="15" rx="20" ry="3" fill="${colorTop}" opacity=".85"/>
+    </g>
+    <ellipse cx="19" cy="18" rx="3" ry="7" fill="rgba(255,255,255,.35)"/>
+  </svg>`;
+}
+
+/* ============ 4. BUILD PANELS ============ */
+const ORDER = ['clue','clue','clue','question','score'];
+const QUESTION_GRAPES = ['pinot_noir','merlot','cabernet_sauvignon']; // this round's 3 answer options
+let homeIndex = 3, currentIndex = 3;
+
+const track = document.getElementById('track');
+const dotsWrap = document.getElementById('dots');
+
+QUESTION_GRAPES.forEach((key, i)=>{
+  const g = GRAPES[key];
+  const panel = document.createElement('div');
+  panel.className = 'panel clue-panel';
+  panel.style.background = `radial-gradient(circle at 50% 0%, ${g.bg[0]}, ${g.bg[1]} 75%)`;
+  panel.innerHTML = `
+    <div class="p-hdr" style="color:${g.ink}"><div class="p-eyebrow">Clue card ${i+1} of 3</div></div>
+    <div class="clue-card" style="background:transparent;">
+      <div class="cc-badge">
+        <div class="glass-wrap">${glassSVG(g.accent, g.bg[1])}</div>
+        <div class="cc-letter" style="color:${g.ink};opacity:.7">Option ${String.fromCharCode(65+i)}</div>
+        <div class="cc-name" style="color:${g.ink}">${g.label}</div>
+      </div>
+      <div class="cc-cloud" id="cloud-${key}-${i}"></div>
+    </div>`;
+  track.appendChild(panel);
+});
+
+const qPanel = document.createElement('div');
+qPanel.className = 'panel q-panel';
+qPanel.innerHTML = `
+  <div class="q-round">Question 2 · Grape</div>
+  <div class="q-text">Knowing the flavour — what grape or blend do you think this is?</div>
+  <div class="q-opts">
+    <div class="q-opt">1 &nbsp;·&nbsp; Cabernet Sauvignon</div>
+    <div class="q-opt">2 &nbsp;·&nbsp; Merlot</div>
+    <div class="q-opt">3 &nbsp;·&nbsp; Pinot Noir</div>
+  </div>
+  <div class="swipe-hint">
+    <span class="l">&larr; Clue cards</span>
+    <span class="r">Scoreboard &rarr;</span>
+  </div>`;
+track.appendChild(qPanel);
+
+const scorePanel = document.createElement('div');
+scorePanel.className = 'panel score-panel';
+scorePanel.innerHTML = `
+  <div class="p-hdr" style="color:#f6e2d4;position:static;text-align:left;padding:0 0 14px;">
+    <div class="p-eyebrow">Live scoring</div>
+    <div class="p-title" style="color:#f5c842;">Round 2 &middot; Grape</div>
+  </div>
+  <div class="sc-list" id="scList"></div>
+  <div id="countdownArea"></div>
+  <div class="sc-controls">
+    <button class="sc-btn" onclick="simLock()">Simulate lock-ins</button>
+    <button class="sc-btn" onclick="runReveal()">Reveal (fireworks)</button>
+    <button class="sc-btn" onclick="runCountdown()">Countdown to next Q</button>
+  </div>`;
+track.appendChild(scorePanel);
+
+/* dot rail */
+ORDER.forEach((type,i)=>{
+  const d = document.createElement('div');
+  d.className = 'dot' + (i===homeIndex?' home':'');
+  dotsWrap.appendChild(d);
+});
+function updateDots(){
+  [...dotsWrap.children].forEach((d,i)=>{
+    d.classList.toggle('active', i===currentIndex);
+  });
+}
+
+/* render clouds once panels are in DOM & sized */
+requestAnimationFrame(()=>{
+  QUESTION_GRAPES.forEach((key,i)=> renderCloud(document.getElementById(`cloud-${key}-${i}`), key) );
+});
+
+/* ============ 5. SWIPE MECHANICS ============ */
+let dragStartX=0, dragging=false, trackX=0;
+function panelX(i){ return -i*window.innerWidth; }
+function goTo(i){
+  currentIndex = Math.max(0, Math.min(ORDER.length-1, i));
+  track.style.transition = 'transform .38s cubic-bezier(.22,1,.36,1)';
+  track.style.transform = `translateX(${panelX(currentIndex)}px)`;
+  updateDots();
+}
+goTo(homeIndex);
+
+const stage = document.getElementById('stage');
+stage.addEventListener('pointerdown', e=>{
+  dragging = true; dragStartX = e.clientX;
+  trackX = panelX(currentIndex);
+  track.style.transition = 'none';
+});
+stage.addEventListener('pointermove', e=>{
+  if(!dragging) return;
+  const dx = e.clientX - dragStartX;
+  track.style.transform = `translateX(${trackX+dx}px)`;
+});
+function endDrag(e){
+  if(!dragging) return; dragging = false;
+  const dx = (e.clientX||dragStartX) - dragStartX;
+  if(Math.abs(dx) > 60){ goTo(currentIndex - Math.sign(dx)); }
+  else { goTo(currentIndex); }
+}
+stage.addEventListener('pointerup', endDrag);
+stage.addEventListener('pointerleave', endDrag);
+
+/* ============ 6. SCOREBOARD DEMO LOGIC ============ */
+const PLAYERS = ['Sarah','Mike','Priya','Tom'];
+let states = PLAYERS.map(()=> 'thinking');
+function paintScores(){
+  document.getElementById('scList').innerHTML = PLAYERS.map((n,i)=>{
+    const s = states[i];
+    const label = {thinking:'Choosing…',locked:'Locked in',correct:'Correct',wrong:'Wrong'}[s];
+    return `<div class="sc-row">
+      <div class="sc-light ${s}"></div>
+      <div class="sc-name">${n}</div>
+      <div class="sc-status">${label}</div>
+    </div>`;
+  }).join('');
+}
+paintScores();
+
+function simLock(){
+  states = states.map(s => s==='thinking' ? (Math.random()>0.15?'locked':'thinking') : s);
+  paintScores();
+}
+
+function fireworks(){
+  const layer = document.getElementById('fwLayer');
+  const colors = ['#f5c842','#c8860a','#7a1f3d','#fff','#2d7a4f'];
+  const origins = [[0.28,0.32],[0.72,0.28],[0.5,0.45]];
+  origins.forEach((o,oi)=>{
+    setTimeout(()=>{
+      const ox = window.innerWidth*o[0], oy = window.innerHeight*o[1];
+      for(let i=0;i<26;i++){
+        const p = document.createElement('div');
+        p.className='fw-p';
+        const angle = (Math.PI*2)*(i/26), dist = 70+Math.random()*70;
+        p.style.background = colors[Math.floor(Math.random()*colors.length)];
+        p.style.left = ox+'px'; p.style.top = oy+'px';
+        p.style.transition = `transform 1s cubic-bezier(.15,.6,.4,1), opacity 1s ease`;
+        layer.appendChild(p);
+        requestAnimationFrame(()=>{
+          p.style.transform = `translate(${Math.cos(angle)*dist}px, ${Math.sin(angle)*dist+40}px)`;
+          p.style.opacity = '0';
+        });
+        setTimeout(()=>p.remove(), 1100);
+      }
+    }, oi*260);
+  });
+}
+
+function runReveal(){
+  states = states.map(()=> 'locked');
+  paintScores();
+  setTimeout(()=>{
+    states = PLAYERS.map(()=> Math.random()>0.4?'correct':'wrong');
+    paintScores();
+    fireworks();
+  }, 700);
+}
+
+function runCountdown(){
+  const area = document.getElementById('countdownArea');
+  let n = 5;
+  function tick(){
+    area.innerHTML = `<div class="countdown-num">${n}</div>`;
+    if(n>0){ n--; setTimeout(tick, 700); }
+    else { setTimeout(()=>{ area.innerHTML=''; states = PLAYERS.map(()=>'thinking'); paintScores(); }, 500); }
+  }
+  tick();
+}
+
+window.addEventListener('resize', ()=>{
+  goTo(currentIndex);
+  QUESTION_GRAPES.forEach((key,i)=> renderCloud(document.getElementById(`cloud-${key}-${i}`), key) );
+});
+</script>
+</body>
+</html>
