@@ -197,7 +197,7 @@ function renderCloud(container, grapeKey){
     const w = measure(ctx, item.w, px) + 6;
     const h = px*1.02;
     let angle = 0, radius = 0, found=false, x=W/2, y=H/2, tries=0;
-    while(!found && tries < 380){
+    while(!found && tries < 650){
       x = W/2 + radius*Math.cos(angle) - w/2;
       y = H/2 + radius*Math.sin(angle)*0.72 - h/2;
       const box = {x,y,w,h};
@@ -319,10 +319,23 @@ function updateDots(){
   });
 }
 
-/* render clouds once panels are in DOM & sized */
-requestAnimationFrame(()=>{
-  QUESTION_GRAPES.forEach((key,i)=> renderCloud(document.getElementById(`cloud-${key}-${i}`), key) );
-});
+/* render clouds only once we KNOW the real size is settled (not guessed).
+   ResizeObserver fires with the container's true post-layout size, and we
+   also wait for the display font so word-width measurements are correct.
+   This is what was missing before: rendering too early packed words into
+   a smaller phantom box and silently dropped whatever didn't fit. */
+function initClouds(){
+  QUESTION_GRAPES.forEach((key,i)=>{
+    const el = document.getElementById(`cloud-${key}-${i}`);
+    const ro = new ResizeObserver(entries=>{
+      const r = entries[0].contentRect;
+      if(r.width>20 && r.height>20) renderCloud(el, key);
+    });
+    ro.observe(el);
+  });
+}
+if(document.fonts && document.fonts.ready){ document.fonts.ready.then(initClouds); }
+else { window.addEventListener('load', initClouds); }
 
 /* ============ 5. SWIPE MECHANICS ============ */
 let dragStartX=0, dragging=false, trackX=0;
@@ -422,10 +435,7 @@ function runCountdown(){
   tick();
 }
 
-window.addEventListener('resize', ()=>{
-  goTo(currentIndex);
-  QUESTION_GRAPES.forEach((key,i)=> renderCloud(document.getElementById(`cloud-${key}-${i}`), key) );
-});
+window.addEventListener('resize', ()=> goTo(currentIndex) );
 </script>
 </body>
 </html>
