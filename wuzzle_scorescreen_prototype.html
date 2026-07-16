@@ -7,86 +7,85 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400&family=Lato:wght@300;400;700&display=swap');
 
-:root[data-theme="light"]{
-  --bg:#fdf6ef; --bg2:#fff9f4; --card:#ffffff; --text:#2a1008; --dim:#7a4a30; --border:#ddc9b4; --shadow:rgba(122,31,61,.1);
-}
-:root[data-theme="dark"]{
-  --bg:#160810; --bg2:#0d0509; --card:#241019; --text:#f3e2d8; --dim:#c9a58f; --border:rgba(255,255,255,.14); --shadow:rgba(0,0,0,.5);
-}
-:root{
-  --blue:#1a5fa8; --yellow:#d4a010; --green:#2d7a4f; --red:#b02020; --idle:#9a8a80;
-}
+:root[data-theme="light"]{ --bg:#ffffff; --text:#161010; --dim:#6b5a4a; --border:#e2d8c8; }
+:root[data-theme="dark"]{ --bg:#000000; --text:#f4ece2; --dim:#a8998a; --border:rgba(255,255,255,.12); }
+:root{ --blue:#1a8fd1; --yellow:#c9a61a; --green:#1fa855; --red:#e21e1e; --idle:#7a8aa0; }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;user-select:none;}
 html,body{height:100%;}
 body{font-family:'Lato',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;transition:background .4s,color .4s;}
 
-#screen{max-width:460px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;padding:18px 18px 0;}
-
-/* ===== TOP TWO-THIRDS: the actual score screen ===== */
+#screen{max-width:520px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;padding:20px 14px 0;}
 #content{flex:0 0 auto;}
 
-.theme-toggle{position:fixed;top:14px;right:14px;z-index:50;background:var(--card);border:1.5px solid var(--border);border-radius:20px;padding:7px 13px;font-size:11px;font-weight:700;color:var(--dim);cursor:pointer;box-shadow:0 2px 10px var(--shadow);}
+.theme-toggle{position:fixed;top:12px;right:12px;z-index:50;background:transparent;border:1.5px solid var(--border);border-radius:18px;padding:6px 12px;font-size:10.5px;font-weight:700;color:var(--dim);cursor:pointer;}
 
-/* round header banner */
-.round-band{border-radius:20px;padding:16px 20px;margin:6px 0 4px;color:#fff;box-shadow:0 6px 20px var(--shadow);transition:background-color .5s ease;}
-.round-eyebrow{font-size:10px;letter-spacing:3px;text-transform:uppercase;opacity:.82;font-weight:700;}
-.round-title{font-family:'Playfair Display',serif;font-size:22px;margin-top:2px;}
-.round-answer{font-size:13px;margin-top:8px;max-height:0;opacity:0;overflow:hidden;transition:max-height .5s ease,opacity .5s ease,margin-top .5s ease;}
-.round-answer.show{max-height:40px;opacity:1;margin-top:8px;}
-.round-answer b{font-weight:700;}
+/* ===== the grid: one column per name, six per category ===== */
+.grid-row{display:grid;grid-template-columns:98px repeat(6,1fr);align-items:center;column-gap:2px;}
 
-/* player rows */
-#players{margin-top:14px;display:flex;flex-direction:column;gap:9px;}
-.prow{background:var(--card);border:1.5px solid var(--border);border-radius:16px;padding:12px 14px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 10px var(--shadow);transition:opacity .5s ease, transform .5s ease;}
-.prow.blank{opacity:0;transform:translateY(6px);}
-.p-info{flex:1;min-width:0;}
-.p-name{font-size:14.5px;font-weight:700;}
-.p-chip{display:inline-block;margin-top:3px;font-size:10.5px;padding:2px 8px;border-radius:10px;font-weight:700;letter-spacing:.2px;}
-.p-chip.correct{background:rgba(45,122,79,.15);color:var(--green);}
-.p-chip.wrong{background:rgba(176,32,32,.15);color:var(--red);}
-.p-status{font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);opacity:.8;margin-right:2px;}
-.p-dot{width:15px;height:15px;border-radius:50%;flex-shrink:0;background:var(--idle);transition:background-color .35s, box-shadow .35s;}
-.p-dot.choosing{background:var(--blue);animation:dotpulse 1s ease-in-out infinite;box-shadow:0 0 0 4px rgba(26,95,168,.2);}
-.p-dot.locked{background:var(--yellow);box-shadow:0 0 10px rgba(212,160,16,.6),0 0 0 4px rgba(212,160,16,.18);}
-.p-dot.correct{background:var(--green);box-shadow:0 0 10px rgba(45,122,79,.7),0 0 0 4px rgba(45,122,79,.2);}
-.p-dot.wrong{background:var(--red);box-shadow:0 0 10px rgba(176,32,32,.7),0 0 0 4px rgba(176,32,32,.2);}
-@keyframes dotpulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+#revealRow .reveal-cell{font-size:9.5px;font-weight:700;color:var(--green);text-align:center;min-height:13px;letter-spacing:.3px;text-transform:capitalize;}
+#headerRow{margin-bottom:10px;}
+.cat-hdr{font-family:'Playfair Display',serif;font-size:15px;text-align:center;color:var(--text);transition:color .4s;white-space:nowrap;}
+.cat-hdr.active{color:var(--blue);font-weight:700;}
+.cat-hdr.done{color:var(--green);}
 
-/* triple-pulse trigger, applied to #content as a whole */
+#playerRows{display:flex;flex-direction:column;gap:16px;}
+.player-row{}
+.name-cell{display:flex;align-items:baseline;gap:6px;}
+.tally{font-size:11px;color:var(--dim);width:20px;flex-shrink:0;}
+.name-block{min-width:0;}
+.p-name{font-family:'Playfair Display',serif;font-size:22px;line-height:1.1;}
+.p-status{font-size:9.5px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);margin-top:1px;}
+.p-status.choosing{color:var(--blue);}
+.p-status.locked{color:var(--yellow);}
+.p-status.correct{color:var(--green);}
+.p-status.wrong{color:var(--red);}
+
+.state-cell{display:flex;align-items:center;justify-content:center;min-height:22px;}
+.dot{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--idle);background:transparent;transition:background-color .3s,border-color .3s,box-shadow .3s;}
+.dot.choosing{background:var(--blue);border-color:var(--blue);animation:dotpulse 1s ease-in-out infinite;}
+.dot.locked{background:var(--yellow);border-color:var(--yellow);}
+.dot.correct{background:var(--green);border-color:var(--green);}
+.dot.wrong{background:var(--red);border-color:var(--red);}
+@keyframes dotpulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.78)}}
+.answer-text{font-size:9.5px;font-weight:700;text-align:center;line-height:1.15;text-transform:uppercase;}
+.answer-text.correct{color:var(--green);}
+.answer-text.wrong{color:var(--red);}
+
+/* triple-pulse + breath-hold fade, applied to the whole grid */
 #content.triplepulse{animation:triplepulse .5s ease 3;}
-@keyframes triplepulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.35)}}
-
-/* breath-hold fade */
-#content.holding{opacity:0;transition:opacity .6s ease;}
-#content{opacity:1;transition:opacity .6s ease;}
+@keyframes triplepulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.4)}}
+#content{opacity:1;transition:opacity .5s ease;}
+#content.holding{opacity:0;}
+#content.winking{opacity:0;transition:opacity .35s ease;}
 .breath{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:80;opacity:0;transition:opacity .3s;}
 .breath.show{opacity:1;}
 .breath-num{font-family:'Playfair Display',serif;font-size:54px;color:var(--dim);}
 
-/* ===== marker for the reserved bottom third — remove in production ===== */
-.reserved-line{margin-top:22px;border-top:1.5px dashed var(--border);position:relative;}
+/* ===== reserved bottom third — marker only, remove in production ===== */
+.reserved-line{margin-top:26px;border-top:1.5px dashed var(--border);position:relative;}
 .reserved-line span{position:absolute;top:6px;left:0;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);opacity:.55;}
-.reserved-space{flex:1;min-height:26vh;}
+.reserved-space{flex:1;min-height:24vh;}
 
-/* ===== demo control strip (not part of the real screen) ===== */
-#demoBar{position:sticky;bottom:0;background:var(--bg2);border-top:1.5px solid var(--border);padding:12px 4px calc(14px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px;}
-#demoLabel{font-size:11px;color:var(--dim);text-align:center;letter-spacing:.5px;}
+/* ===== demo control strip — not part of the real screen ===== */
+#demoBar{position:sticky;bottom:0;background:var(--bg);border-top:1.5px solid var(--border);padding:12px 4px calc(14px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px;}
+#demoLabel{font-size:11px;color:var(--dim);text-align:center;}
 #advanceBtn{background:var(--text);color:var(--bg);border:none;border-radius:14px;padding:15px;font-family:'Playfair Display',serif;font-size:16px;letter-spacing:1.5px;cursor:pointer;}
 #advanceBtn:active{opacity:.85;}
 </style>
 </head>
 <body data-theme="light">
 
-<button class="theme-toggle" id="themeBtn">&#9789; Dark mode</button>
+<button class="theme-toggle" id="themeBtn">&#9789; Dark</button>
 
 <div id="screen">
   <div id="content">
-    <div class="round-band" id="roundBand">
-      <div class="round-eyebrow" id="roundEyebrow">Waiting for players</div>
-      <div class="round-title" id="roundTitle">Lobby</div>
-      <div class="round-answer" id="roundAnswer"></div>
+    <div class="grid-row" id="revealRow">
+      <div></div>
     </div>
-    <div id="players"></div>
+    <div class="grid-row" id="headerRow">
+      <div></div>
+    </div>
+    <div id="playerRows"></div>
   </div>
 
   <div class="reserved-line"><span>reserved space — future content sits below the fold</span></div>
@@ -102,165 +101,187 @@ body{font-family:'Lato',sans-serif;background:var(--bg);color:var(--text);min-he
 
 <script>
 const ROUNDS = [
-  {label:"Flavour",   color:"#c8860a", answer:"Apricots"},
-  {label:"Grape",     color:"#7a1f3d", answer:"Cabernet Sauvignon"},
-  {label:"Country",   color:"#1a6b7a", answer:"New Zealand"},
-  {label:"Region",    color:"#2d7a4f", answer:"Hawkes Bay"},
-  {label:"Vintage",   color:"#6a3a8b", answer:"2020"},
-  {label:"Winemaker", color:"#a0522d", answer:"Te Awanga Estate"}
+  {label:"Flavour",   answer:"Thyme"},
+  {label:"Grape",     answer:"Syrah"},
+  {label:"Country",   answer:"New Zealand"},
+  {label:"Vintage",   answer:"2020"},
+  {label:"Region",    answer:"Hawkes Bay"},
+  {label:"Winery",    answer:"Te Awanga Estate"}
 ];
-const PLAYERS = ["Sarah","Mike","Priya","Tom"];
+const PLAYERS = ["Sarah","Mike","Priya","Tom","Chris","Joanne"];
+const DISTRACTORS = ["Tobacco","Chocolate","Cherry","Merlot","Australia","2018"];
 
-// Every player's answer this round + outcome, and their history for the "chip" carry-forward
-let roundIndex = 0;
-let history = PLAYERS.map(()=> []); // [{answer, correct}, ...]
-let lockState = PLAYERS.map(()=> 'idle'); // idle | choosing | locked | correct | wrong
+let roundIndex = -1;               // -1 = lobby, not started
+let history = PLAYERS.map(()=> []); // per player: [{answer, correct}, ...] for completed rounds
+let lockState = PLAYERS.map(()=> 'idle');
+const PHASES = ['choosing','partial','full','pulse','reveal'];
+let phaseIdx = 0;
 
-// phases within a round, cycled by the Advance button
-const PHASES = ['ready','choosing','partial','full','pulse','reveal'];
-let phaseIdx = 0; // starts at 'ready' only for the very first call
+const revealRow = document.getElementById('revealRow');
+const headerRow = document.getElementById('headerRow');
+const playerRows = document.getElementById('playerRows');
+const content = document.getElementById('content');
 
-const el = {
-  content: document.getElementById('content'),
-  band: document.getElementById('roundBand'),
-  eyebrow: document.getElementById('roundEyebrow'),
-  title: document.getElementById('roundTitle'),
-  answer: document.getElementById('roundAnswer'),
-  players: document.getElementById('players'),
-  breath: document.getElementById('breath'),
-  breathNum: document.getElementById('breathNum'),
-};
+// header row + reveal row are built once; only classes/text update after that
+function buildStaticRows(){
+  revealRow.innerHTML = '<div></div>' + ROUNDS.map((r,i)=>`<div class="reveal-cell" id="reveal-${i}"></div>`).join('');
+  headerRow.innerHTML = '<div></div>' + ROUNDS.map((r,i)=>`<div class="cat-hdr" id="hdr-${i}">${r.label}</div>`).join('');
+}
+buildStaticRows();
 
-function paintPlayers(){
-  el.players.innerHTML = PLAYERS.map((name,i)=>{
-    const s = lockState[i];
-    const label = {idle:'Waiting…', choosing:'Choosing…', locked:'Locked in', correct:'Correct', wrong:'Next time!'}[s];
-    const prev = history[i][roundIndex-1];
-    const chip = prev ? `<div class="p-chip ${prev.correct?'correct':'wrong'}">${prev.answer}</div>` : '';
-    return `<div class="prow">
-      <div class="p-info">
-        <div class="p-name">${name}</div>
-        ${chip}
+function tally(i){
+  const done = history[i].length;
+  if(done === 0) return '';
+  const correct = history[i].filter(h=>h.correct).length;
+  return `${correct}/${done}`;
+}
+
+function cellContent(playerI, roundI){
+  if(roundI < roundIndex){
+    const h = history[playerI][roundI];
+    if(!h) return '<div class="state-cell"></div>';
+    return `<div class="state-cell"><div class="answer-text ${h.correct?'correct':'wrong'}">${h.answer}</div></div>`;
+  }
+  if(roundI === roundIndex && roundIndex >= 0){
+    return `<div class="state-cell"><div class="dot ${lockState[playerI]}"></div></div>`;
+  }
+  return `<div class="state-cell"><div class="dot"></div></div>`;
+}
+
+function paint(){
+  // reveal row + header row states
+  ROUNDS.forEach((r,i)=>{
+    const hdr = document.getElementById(`hdr-${i}`);
+    const rev = document.getElementById(`reveal-${i}`);
+    hdr.classList.remove('active','done');
+    if(i < roundIndex || (i === roundIndex && PHASES[phaseIdx] === 'reveal')){
+      hdr.classList.add('done');
+      rev.textContent = r.answer;
+    } else if(i === roundIndex){
+      hdr.classList.add('active');
+      rev.textContent = '';
+    } else {
+      rev.textContent = '';
+    }
+  });
+
+  playerRows.innerHTML = PLAYERS.map((name,i)=>{
+    const cells = ROUNDS.map((r,ri)=> cellContent(i,ri)).join('');
+    const status = roundIndex < 0 ? 'idle' : lockState[i];
+    const statusLabel = {
+      idle:'Ready', choosing:'Choosing…', locked:'Locked in', correct:'Correct', wrong:'Next time!'
+    }[status];
+    return `<div class="grid-row player-row">
+      <div class="name-cell">
+        <span class="tally">${tally(i)}</span>
+        <div class="name-block">
+          <div class="p-name">${name}</div>
+          <div class="p-status ${status}">${statusLabel}</div>
+        </div>
       </div>
-      <div class="p-status">${label}</div>
-      <div class="p-dot ${s}"></div>
+      ${cells}
     </div>`;
   }).join('');
 }
+paint();
 
-function setRoundHeader(revealed){
-  const r = ROUNDS[roundIndex];
-  el.band.style.background = revealed ? 'var(--green)' : r.color;
-  el.eyebrow.textContent = `Question ${roundIndex+1} of ${ROUNDS.length}`;
-  el.title.textContent = r.label;
-  if(revealed){
-    el.answer.innerHTML = `The answer was &nbsp;<b>${r.answer}</b>`;
-    el.answer.classList.add('show');
-  } else {
-    el.answer.classList.remove('show');
-  }
-}
-
-function initReady(){
-  el.band.style.background = 'var(--idle)';
-  el.eyebrow.textContent = 'Waiting for players';
-  el.title.textContent = 'Lobby';
-  el.answer.classList.remove('show');
-  lockState = PLAYERS.map(()=> 'idle');
-  paintPlayers();
-}
-initReady();
-
-async function breathHold(){
-  el.content.classList.add('holding');
-  await sleep(600);
-  el.breath.classList.add('show');
-  el.breathNum.textContent = '1';
-  await sleep(500);
-  el.breathNum.textContent = '2';
-  await sleep(500);
-  el.breath.classList.remove('show');
-  await sleep(150);
-}
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
 
-async function runPhase(phase){
-  if(phase === 'ready'){
-    // handled by initReady already; first Advance moves straight to choosing
-    return;
-  }
+async function breathHold(){
+  content.classList.add('holding');
+  await sleep(550);
+  document.getElementById('breath').classList.add('show');
+  document.getElementById('breathNum').textContent = '1';
+  await sleep(500);
+  document.getElementById('breathNum').textContent = '2';
+  await sleep(500);
+  document.getElementById('breath').classList.remove('show');
+  await sleep(150);
+}
+
+async function winkOut(){
+  content.classList.add('winking');
+  await sleep(400);
+}
+function winkIn(){
+  content.classList.remove('winking');
+}
+
+async function runPhase(){
+  if(roundIndex === -1){ roundIndex = 0; lockState = PLAYERS.map(()=> 'choosing'); phaseIdx = 0; paint(); return; }
+
+  const phase = PHASES[phaseIdx];
   if(phase === 'choosing'){
-    setRoundHeader(false);
-    lockState = PLAYERS.map(()=> 'choosing');
-    paintPlayers();
-    return;
+    lockState = PLAYERS.map(()=> 'choosing'); paint(); return;
   }
   if(phase === 'partial'){
-    // half the players lock in
-    lockState = lockState.map((s,i)=> i%2===0 ? 'locked' : s);
-    paintPlayers();
-    return;
+    lockState = lockState.map((s,i)=> i%2===0 ? 'locked' : s); paint(); return;
   }
   if(phase === 'full'){
-    lockState = lockState.map(()=> 'locked');
-    paintPlayers();
-    return;
+    lockState = lockState.map(()=> 'locked'); paint(); return;
   }
   if(phase === 'pulse'){
-    el.content.classList.add('triplepulse');
+    content.classList.add('triplepulse');
     await sleep(1550);
-    el.content.classList.remove('triplepulse');
+    content.classList.remove('triplepulse');
     await breathHold();
-    el.content.classList.remove('holding');
+    content.classList.remove('holding');
     return;
   }
   if(phase === 'reveal'){
     const r = ROUNDS[roundIndex];
     lockState = PLAYERS.map((name,i)=>{
       const correct = Math.random() > 0.35;
-      history[i][roundIndex] = { answer: correct ? r.answer : 'Merlot', correct };
+      const given = correct ? r.answer : DISTRACTORS[roundIndex];
+      history[i][roundIndex] = { answer: given, correct };
       return correct ? 'correct' : 'wrong';
     });
-    setRoundHeader(true);
-    paintPlayers();
+    paint();
     return;
   }
 }
 
 const btn = document.getElementById('advanceBtn');
 const lbl = document.getElementById('demoLabel');
-const NEXT_LABEL = {
-  ready:'Tap to start the round (Choosing…)',
-  choosing:'Tap: a couple of players lock in',
-  partial:'Tap: everyone locks in',
-  full:'Tap: all locked — trigger the pulse + breath-hold',
-  pulse:'Tap: reveal the answer',
-  reveal:'Tap: move to the next question'
-};
+const NEXT_LABEL = [
+  'Tap: a couple of players lock in',
+  'Tap: everyone locks in',
+  'Tap: all locked — trigger pulse + breath-hold',
+  'Tap: reveal the answer',
+  'Tap: move to the next question'
+];
 
 async function advance(){
   btn.disabled = true;
+  if(roundIndex === -1){
+    await runPhase();
+    lbl.textContent = NEXT_LABEL[0];
+    btn.disabled = false; return;
+  }
   const phase = PHASES[phaseIdx];
-  await runPhase(phase);
+  await runPhase();
   if(phase === 'reveal'){
-    // move to next round
+    await winkOut();
     roundIndex = (roundIndex+1) % ROUNDS.length;
-    phaseIdx = 1; // skip 'ready' after the first round — go straight to choosing
+    phaseIdx = 0;
+    lockState = PLAYERS.map(()=> 'choosing');
+    paint();
+    winkIn();
+    lbl.textContent = NEXT_LABEL[0];
   } else {
     phaseIdx = Math.min(phaseIdx+1, PHASES.length-1);
+    lbl.textContent = NEXT_LABEL[phaseIdx];
   }
-  lbl.textContent = NEXT_LABEL[PHASES[phaseIdx]] || NEXT_LABEL.choosing;
   btn.disabled = false;
 }
-lbl.textContent = NEXT_LABEL.ready;
+lbl.textContent = 'Tap to start the round (Choosing…)';
 btn.addEventListener('click', advance);
 
 document.getElementById('themeBtn').addEventListener('click', ()=>{
-  const html = document.body;
-  const now = html.getAttribute('data-theme');
+  const now = document.body.getAttribute('data-theme');
   const next = now === 'light' ? 'dark' : 'light';
-  html.setAttribute('data-theme', next);
-  document.getElementById('themeBtn').innerHTML = next==='light' ? '&#9789; Dark mode' : '&#9788; Light mode';
+  document.body.setAttribute('data-theme', next);
+  document.getElementById('themeBtn').innerHTML = next==='light' ? '&#9789; Dark' : '&#9788; Light';
 });
 </script>
 </body>
