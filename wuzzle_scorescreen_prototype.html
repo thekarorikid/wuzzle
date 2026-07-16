@@ -66,6 +66,17 @@ body{font-family:'Lato',sans-serif;background:var(--bg);color:var(--text);min-he
 .reserved-line span{position:absolute;top:6px;left:0;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);opacity:.55;}
 .reserved-space{flex:1;min-height:24vh;}
 
+/* portrait phones only — landscape already has enough width for the full-size headers */
+@media (max-width:480px) and (orientation:portrait){
+  .grid-row{grid-template-columns:76px repeat(6,1fr);column-gap:1px;}
+  .cat-hdr{font-size:10.5px;}
+  #revealRow .reveal-cell{font-size:7.5px;}
+  .p-name{font-size:19px;}
+  .tally{font-size:9px;width:16px;}
+  .dot{width:13px;height:13px;}
+  .answer-text{font-size:8px;}
+}
+
 /* ===== demo control strip — not part of the real screen ===== */
 #demoBar{position:sticky;bottom:0;background:var(--bg);border-top:1.5px solid var(--border);padding:12px 4px calc(14px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px;}
 #demoLabel{font-size:11px;color:var(--dim);text-align:center;}
@@ -109,13 +120,17 @@ const ROUNDS = [
   {label:"Winery",    answer:"Te Awanga Estate"}
 ];
 const PLAYERS = ["Sarah","Mike","Priya","Tom","Chris","Joanne"];
-const DISTRACTORS = ["Tobacco","Chocolate","Cherry","Merlot","Australia","2018"];
+// one plausible WRONG answer per round — matched to what that category
+// actually is, so a wrong guess never looks like it belongs to a different
+// question (this is what "Chocolate" under Grape was: a flavour word doing
+// duty as a fake grape variety, which reads as a bug even though it isn't
+// positionally wrong)
+const DISTRACTORS = ["Tobacco","Merlot","Australia","2018","Marlborough","Craggy Range"];
 
 let roundIndex = -1;               // -1 = lobby, not started
+let roundRevealed = false;         // has THIS round's answer been shown yet?
 let history = PLAYERS.map(()=> []); // per player: [{answer, correct}, ...] for completed rounds
 let lockState = PLAYERS.map(()=> 'idle');
-const PHASES = ['choosing','partial','full','pulse','reveal'];
-let phaseIdx = 0;
 
 const revealRow = document.getElementById('revealRow');
 const headerRow = document.getElementById('headerRow');
@@ -143,18 +158,22 @@ function cellContent(playerI, roundI){
     return `<div class="state-cell"><div class="answer-text ${h.correct?'correct':'wrong'}">${h.answer}</div></div>`;
   }
   if(roundI === roundIndex && roundIndex >= 0){
+    // still a DOT here even after reveal — correct/wrong colour, not text yet.
+    // it only becomes text once we've moved on to the next round (see advance()).
     return `<div class="state-cell"><div class="dot ${lockState[playerI]}"></div></div>`;
   }
   return `<div class="state-cell"><div class="dot"></div></div>`;
 }
 
 function paint(){
-  // reveal row + header row states
+  // reveal row + header row states — driven by roundRevealed, not by the
+  // demo button's phase sequencer, so what's ON SCREEN can never drift out
+  // of sync with what the button THINKS is on screen.
   ROUNDS.forEach((r,i)=>{
     const hdr = document.getElementById(`hdr-${i}`);
     const rev = document.getElementById(`reveal-${i}`);
     hdr.classList.remove('active','done');
-    if(i < roundIndex || (i === roundIndex && PHASES[phaseIdx] === 'reveal')){
+    if(i < roundIndex || (i === roundIndex && roundRevealed)){
       hdr.classList.add('done');
       rev.textContent = r.answer;
     } else if(i === roundIndex){
@@ -207,10 +226,21 @@ function winkIn(){
   content.classList.remove('winking');
 }
 
-async function runPhase(){
-  if(roundIndex === -1){ roundIndex = 0; lockState = PLAYERS.map(()=> 'choosing'); phaseIdx = 0; paint(); return; }
+// Six explicit steps, run in order, one per tap. 'reveal' and 'next' are
+// deliberately separate: reveal only flips the dots green/red and posts the
+// answer above the header; advancing to the next round is a second, distinct
+// action that also converts THIS round's dots into the small answer-text.
+const PHASES = ['choosing','partial','full','pulse','reveal','next'];
+const LABELS = {
+  choosing: 'Tap to start the round (Choosing…)',
+  partial:  'Tap: a couple of players lock in',
+  full:     'Tap: everyone locks in',
+  pulse:    'Tap: all locked — trigger pulse + breath-hold',
+  reveal:   'Tap: reveal the answer',
+  next:     'Tap: move to the next question'
+};
 
-  const phase = PHASES[phaseIdx];
+async function runPhase(phase){
   if(phase === 'choosing'){
     lockState = PLAYERS.map(()=> 'choosing'); paint(); return;
   }
@@ -236,45 +266,35 @@ async function runPhase(){
       history[i][roundIndex] = { answer: given, correct };
       return correct ? 'correct' : 'wrong';
     });
+    roundRevealed = true;
     paint();
+    return;
+  }
+  if(phase === 'next'){
+    await winkOut();
+    roundIndex = (roundIndex+1) % ROUNDS.length;
+    roundRevealed = false;
+    lockState = PLAYERS.map(()=> 'choosing');
+    paint();
+    winkIn();
     return;
   }
 }
 
 const btn = document.getElementById('advanceBtn');
 const lbl = document.getElementById('demoLabel');
-const NEXT_LABEL = [
-  'Tap: a couple of players lock in',
-  'Tap: everyone locks in',
-  'Tap: all locked — trigger pulse + breath-hold',
-  'Tap: reveal the answer',
-  'Tap: move to the next question'
-];
+let phaseIdx = 0; // index of the phase that will run on the NEXT tap
 
 async function advance(){
   btn.disabled = true;
-  if(roundIndex === -1){
-    await runPhase();
-    lbl.textContent = NEXT_LABEL[0];
-    btn.disabled = false; return;
-  }
+  if(roundIndex === -1) roundIndex = 0;
   const phase = PHASES[phaseIdx];
-  await runPhase();
-  if(phase === 'reveal'){
-    await winkOut();
-    roundIndex = (roundIndex+1) % ROUNDS.length;
-    phaseIdx = 0;
-    lockState = PLAYERS.map(()=> 'choosing');
-    paint();
-    winkIn();
-    lbl.textContent = NEXT_LABEL[0];
-  } else {
-    phaseIdx = Math.min(phaseIdx+1, PHASES.length-1);
-    lbl.textContent = NEXT_LABEL[phaseIdx];
-  }
+  await runPhase(phase);
+  phaseIdx = phase === 'next' ? 0 : phaseIdx + 1;
+  lbl.textContent = LABELS[PHASES[phaseIdx]];
   btn.disabled = false;
 }
-lbl.textContent = 'Tap to start the round (Choosing…)';
+lbl.textContent = LABELS.choosing;
 btn.addEventListener('click', advance);
 
 document.getElementById('themeBtn').addEventListener('click', ()=>{
