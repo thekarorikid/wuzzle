@@ -1037,7 +1037,9 @@ async function onGameState(gv){
       if(!allLockedHandled)checkAllLocked(gv);
     }
   } else if(gv.status==='revealed'){
-    // If we just joined mid-game on a revealed round, catch up
+    // If we just joined mid-game on a revealed round, build the screen
+    // scaffold first — the actual result display below is identical
+    // whether you were here for the countdown or arrived after it.
     if(!gameStarted){
       gameStarted=true;
       curRound=gv.round;lastRound=gv.round;
@@ -1045,43 +1047,10 @@ async function onGameState(gv){
       document.getElementById('waiting-screen').style.display='none';
       document.getElementById('game-screen').style.display='flex';
       renderRound(gv);
-      // Mark as already revealed so we go straight to showing result
-      answered=true;revealShownForRound=true;
-      var cor2=gData[ROUNDS[curRound].key].correct;
-      showRoundResult(cor2,null,false);
-      return;
+      answered=true;
+      var cb0=document.getElementById('cbtn'); if(cb0)cb0.style.display='none';
     }
-    // Catch-up path for anyone who reaches 'revealed' without having run
-    // their own reveal sequence — e.g. joined mid-round, or the tab was
-    // backgrounded through the lock-in window. Guarded by revealShownForRound,
-    // which showAllLockedState already sets for clients who WERE present.
-    if(!revealShownForRound){
-      revealShownForRound=true;
-      var ra=(gv.answers||{})[gv.round]||{};
-      var cor=gData[ROUNDS[gv.round].key].correct;
-      var myAns=ra[myPid]||null;
-      var correct=(myAns===cor);
-      // Update scores
-      var ns2=Object.assign({},pScores);
-      Object.keys(gv.roster||gv.players||{}).forEach(function(pid){
-        if(!ns2[pid])ns2[pid]=[];
-        ns2[pid][gv.round]=(ra[pid]===cor);
-      });
-      pScores=ns2;
-      // Show reveal overlay then results
-      var ro=document.getElementById('reveal-overlay');
-      var ae=document.getElementById('rv-ans');
-      var re2=document.getElementById('rv-rnd');
-      ae.textContent=cor;re2.textContent=ROUNDS[gv.round].label.toUpperCase();
-      ae.style.animation='none';ae.offsetHeight;
-      ae.style.animation='revealIn .6s .1s cubic-bezier(.34,1.56,.64,1) both';
-      ro.style.display='flex';ro.style.opacity='1';ro.style.transition='';
-      if(correct)confetti();
-      await sleep(2800);
-      ro.style.transition='opacity .7s';ro.style.opacity='0';await sleep(750);
-      ro.style.display='none';ro.style.opacity='1';ro.style.transition='';
-      showRoundResult(cor,myAns,correct);
-    }
+    await displayRoundResult(gv);
   } else if(gv.status==='final'){
     if(!finalShown){finalShown=true;await sleep(400);renderFinal(gv);}
   }
@@ -1097,35 +1066,50 @@ function checkAllLocked(gv){
   }
 }
 
-function showAllLockedState(gv){
-  // Update dialogue
+function checkAllLocked(gv){
+  var ra=(gv.answers||{})[curRound]||{};
+  var pids=Object.keys(gv.players||{});
+  if(pids.length>0&&pids.every(pid=>ra[pid])){
+    allLockedHandled=true;
+    showAllLockedState();
+    // Race to become the one client that runs the countdown and writes the
+    // reveal — everyone else just waits. This is a Firebase transaction, the
+    // same safe pattern already used for "Next Question": only the first
+    // write to actually see status:'playing' succeeds, everyone else's
+    // attempt cleanly aborts. No two phones can ever both win.
+    gameRef.child('status').transaction(function(cur){
+      return cur==='playing' ? 'revealing' : undefined;
+    },function(err,committed){
+      if(committed){
+        gameRef.once('value',function(s){
+          var g=s.val();
+          if(g)runReveal(g);
+        });
+      }
+    });
+  }
+}
+
+function showAllLockedState(){
   updateDialogue(
     'Question '+(curRound+1)+': '+ROUNDS[curRound].label,
     'All players locked in!',
     'Revealing the answer...',
     'gold'
   );
-  // Hide lock-in button
   var cb=document.getElementById('cbtn');
   if(cb)cb.style.display='none';
-  // Every client independently runs its own reveal sequence — guarded by
-  // allLockedHandled (set just before this call) so each client does it
-  // exactly once, regardless of how many players are in the room.
-  revealShownForRound=true; // this client is handling its own reveal now, skip the late-joiner fallback below
-  gameRef.once('value',function(s){
-    var gv=s.val();
-    if(gv)runReveal(gv);
-  });
 }
 
 async function runReveal(gv){
-  // Score this round
+  // Only the client that won the transaction reaches this function. Its
+  // whole job is: run the countdown, score the round, write the result to
+  // Firebase. It does NOT display anything itself — every client, this one
+  // included, displays the result the same way, via displayRoundResult()
+  // below, once status:'revealed' comes through. That's what guarantees a
+  // result (and its Next Question button) is only ever shown once per phone.
   var rk=ROUNDS[curRound].key, cor=gData[rk].correct;
   var ra=(gv.answers||{})[curRound]||{};
-  var myAns=ra[myPid]||null;
-  var correct=(myAns===cor);
-
-  // Update local scores
   var ns=Object.assign({},pScores);
   Object.keys(gv.roster||gv.players||{}).forEach(function(pid){
     if(!ns[pid])ns[pid]=[];
@@ -1133,7 +1117,6 @@ async function runReveal(gv){
   });
   pScores=ns;
 
-  // Show countdown overlay
   var ov=document.getElementById('all-locked-overlay');
   var ce=document.getElementById('al-count');
   ov.style.display='flex';
@@ -1144,10 +1127,31 @@ async function runReveal(gv){
   }
   ov.style.display='none';
 
-  // Write scores to Firebase
-  if(gameRef)gameRef.child('scores').set(pScores);
+  var nextRound=curRound+1;
+  if(nextRound>=6){
+    gameRef.update({status:'final',round:6,scores:pScores});
+  } else {
+    gameRef.update({status:'revealed',round:curRound,scores:pScores});
+  }
+}
 
-  // Show reveal overlay
+async function displayRoundResult(gv){
+  // The single shared entry point for showing a round's result — reached by
+  // every client exactly once per round, whether they ran the countdown
+  // themselves or were waiting on someone else's. Guarded synchronously
+  // (no await before the flag is set) so even rapid repeat Firebase events
+  // can't slip through and show this twice.
+  if(revealShownForRound) return;
+  revealShownForRound=true;
+
+  var cor=gData[ROUNDS[curRound].key].correct;
+  var ra=(gv.answers||{})[curRound]||{};
+  var myAns=ra[myPid]||null;
+  // Prefer the authoritative scores the countdown-winner already wrote;
+  // only fall back to computing locally if they genuinely aren't there yet.
+  if(gv.scores) pScores=gv.scores;
+  var correct = (pScores[myPid]!==undefined) ? !!pScores[myPid][curRound] : (myAns===cor);
+
   var ro=document.getElementById('reveal-overlay');
   var ae=document.getElementById('rv-ans');
   var re=document.getElementById('rv-rnd');
@@ -1162,18 +1166,8 @@ async function runReveal(gv){
   await sleep(750);
   ro.style.display='none';ro.style.opacity='1';ro.style.transition='';
 
-  // Show results row + next button
+  updateScoreGrid(gv);
   showRoundResult(cor, myAns, correct);
-
-  // Advance Firebase state (so other players' screens update)
-  if(gameRef){
-    var nextRound=curRound+1;
-    if(nextRound>=6){
-      gameRef.update({status:'final',round:6,scores:pScores});
-    } else {
-      gameRef.update({status:'revealed',round:curRound,scores:pScores});
-    }
-  }
 }
 
 function showRoundResult(correctAnswer, myAnswer, correct){
