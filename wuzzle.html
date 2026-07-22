@@ -1027,6 +1027,16 @@ async function onGameState(gv){
 }
 
 function checkAllLocked(gv){
+  // If this snapshot's round doesn't match what we locally believe is
+  // current, don't act on it. A round transition briefly creates two
+  // separate Firebase writes in flight; if one client's update is running
+  // behind (exactly the kind of thing a slower connection makes more
+  // likely), it can process a snapshot that still reflects the OLD
+  // round's answers — which are, by definition, already fully filled in,
+  // since that's why the reveal already happened — and mistake that for
+  // "everyone's just locked in the new round." Bailing out here whenever
+  // the round number doesn't match closes that window.
+  if(gv.round!==curRound) return;
   var ra=(gv.answers||{})[curRound]||{};
   // Roster is the permanent "everyone who ever joined" list — gv.players
   // only reflects who's connected at this exact instant, which shrinks the
@@ -1180,21 +1190,27 @@ function showRoundResult(correctAnswer, myAnswer, correct){
   nextBtn.onclick=function(){
     nextBtn.disabled=true;
     nextBtn.textContent='Loading...';
-    if(isLast){
-      gameRef.update({status:'final',round:6,scores:pScores});
-    } else {
-      var nextR=curRound+1;
-      gameRef.child('status').transaction(function(cur){
-        if(cur==='revealed')return 'playing';
-        return undefined;
-      },function(err,committed){
-        if(committed){
-          gameRef.update({status:'playing',round:nextR,revealed:false,scores:pScores});
-        } else {
-          nextBtn.disabled=false;nextBtn.textContent='Next Question →';
-        }
-      });
-    }
+    var nextR=curRound+1;
+    var isLastLocal=(nextR>=6);
+    // One atomic transaction on the whole game node — status, round, and
+    // scores all change together in a single write. The old version did
+    // this as two separate writes (flip status, then separately update
+    // round), which left a real gap where another client's listener could
+    // see "status: playing" while "round" still held the old number, and
+    // misread the previous round's fully-answered data as if it belonged
+    // to the new one. One write means there's no in-between state to misread.
+    gameRef.transaction(function(cur){
+      if(!cur || cur.status!=='revealed') return; // abort, not in the expected state
+      cur.status = isLastLocal ? 'final' : 'playing';
+      cur.round = isLastLocal ? 6 : nextR;
+      if(!isLastLocal) cur.revealed = false;
+      cur.scores = pScores;
+      return cur;
+    },function(err,committed){
+      if(!committed){
+        nextBtn.disabled=false;nextBtn.textContent='Next Question →';
+      }
+    });
   };
   if(tbl2)tbl2.after(nextBtn);
 }
@@ -1329,6 +1345,12 @@ function setupGameSwipe(){
       else if(Math.abs(dy)>12){ dragging=false; return; }
     }
     if(!horiz) return;
+    // Once this is confirmed as our horizontal swipe, stop the browser from
+    // also treating it as its own gesture (edge-swipe back/forward, or
+    // switching tabs) — without this, a strong horizontal drag can trigger
+    // both our in-page navigation AND the browser's native one at the same
+    // time, which is what "opens a new window" almost certainly was.
+    e.preventDefault();
     // Only visually follow the drag when it's moving toward a real panel —
     // rightward at home (reveals leaderboard) or leftward at leaderboard
     // (returns home). The other two directions have nothing real to slide
@@ -1339,7 +1361,7 @@ function setupGameSwipe(){
       var track=document.getElementById('swipeTrack');
       if(track){ track.style.transition='none'; track.style.transform='translateX('+(trackXStart+dx)+'px)'; }
     }
-  });
+  },{passive:false});
   function endDrag(e){
     if(!dragging) return; dragging=false;
     if(!horiz) return;
@@ -1383,8 +1405,21 @@ function renderRound(gv){
 
   var hint=document.createElement('div');
   hint.className='swipe-hint';
-  hint.innerHTML='<span'+(r.key!=='g'?' class="disabled"':'')+'>&larr; Clue cards</span><span>Leaderboard &rarr;</span>';
+  var clueEnabled=(r.key==='g');
+  hint.innerHTML='<span id="hintClue"'+(clueEnabled?'':' class="disabled"')+'>&larr; Clue cards</span>'+
+    '<span id="hintScore">Leaderboard &rarr;</span>';
   qPanel.appendChild(hint);
+  // Tapping these does exactly what the swipe gesture is meant to do —
+  // a guaranteed-reliable fallback, since raw touch-drag detection behaves
+  // inconsistently across phones and mobile browsers.
+  var hintClueEl=hint.querySelector('#hintClue');
+  hintClueEl.style.cursor='pointer';
+  hintClueEl.addEventListener('click',function(){
+    if(clueEnabled && gData && gData[r.key]) openClueCards(gData[r.key].opts);
+  });
+  var hintScoreEl=hint.querySelector('#hintScore');
+  hintScoreEl.style.cursor='pointer';
+  hintScoreEl.addEventListener('click',function(){ swipeGoTo(0); });
 
   var dlg=document.createElement('div');
   dlg.innerHTML=buildDialogue(
@@ -1446,6 +1481,11 @@ function renderRound(gv){
   var sPanel=document.createElement('div');
   sPanel.className='swipe-panel';
   sPanel.id='panel-score';
+  var backHint=document.createElement('div');
+  backHint.className='swipe-hint';
+  backHint.innerHTML='<span id="hintBack" style="cursor:pointer;">&larr; Back to game</span><span></span>';
+  backHint.querySelector('#hintBack').addEventListener('click',function(){ swipeGoTo(SWIPE_HOME_IDX); });
+  sPanel.appendChild(backHint);
   var lbWrap=document.createElement('div');
   lbWrap.className='lb-panel';
   lbWrap.id='leaderboard-wrap';
