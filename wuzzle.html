@@ -47,7 +47,8 @@ class po{constructor(e,t){this.database=e,this._delegate=t}on(e,n,t,r){var i;E("
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-body { font-family: 'Lato', sans-serif; background: var(--bg); min-height: 100vh; color: var(--text); overflow-x: hidden; }
+body { font-family: 'Lato', sans-serif; background: #241019; min-height: 100vh; color: var(--text); overflow-x: hidden; }
+#player-view, #host-view { max-width:480px; margin:0 auto; box-shadow:0 0 60px rgba(0,0,0,.35); }
 
 /* ── ANIMATIONS ── */
 @keyframes fadeIn   { from{opacity:0} to{opacity:1} }
@@ -158,10 +159,14 @@ body { font-family: 'Lato', sans-serif; background: var(--bg); min-height: 100vh
   transition:all .5s;
   flex-shrink:0;
 }
-.sg-dot.thinking { background:var(--blue); border-color:rgba(255,255,255,.6); animation:dotPulse .9s ease-in-out infinite; }
+.sg-dot.idle     { background:var(--blue); border-color:rgba(255,255,255,.6); animation:none; }
+.sg-dot.thinking { background:var(--blue); border-color:rgba(255,255,255,.6); animation:dotPulse var(--pulse-dur,.9s) ease-in-out infinite; }
 .sg-dot.locked   { background:var(--yellow); border-color:var(--gold); animation:none; box-shadow:0 0 5px rgba(212,160,16,.6); }
 .sg-dot.correct  { background:var(--green); border-color:#1a5a35; animation:dotPop .4s ease both; }
 .sg-dot.wrong    { background:var(--red); border-color:#8a1010; animation:dotPop .4s ease both; }
+.lb-dots { display:flex; gap:4px; flex-shrink:0; }
+.lb-dots .sg-dot { width:9px; height:9px; }
+.my-score-chip .sg-dot { width:13px; height:13px; }
 
 /* ZONE 2 — GAME DIALOGUE (middle) */
 .game-dialogue {
@@ -337,7 +342,9 @@ body { font-family: 'Lato', sans-serif; background: var(--bg); min-height: 100vh
 /* ── CLUE CARDS (Grape round) — triggered by swipe left now, see .swipe-hint ── */
 
 #clueOverlay {
-  position:fixed; inset:0; background:rgba(8,3,5,.95); z-index:600;
+  position:fixed; top:0; bottom:0; left:50%; width:100%; max-width:480px;
+  transform:translateX(-50%);
+  background:rgba(8,3,5,.95); z-index:600;
   display:none; flex-direction:column;
 }
 #clueOverlay.open { display:flex; }
@@ -347,7 +354,7 @@ body { font-family: 'Lato', sans-serif; background: var(--bg); min-height: 100vh
   font-size:20px; line-height:1; cursor:pointer;
 }
 .clue-eyebrow { text-align:center; padding:20px 0 4px; font-size:10px; letter-spacing:3px; text-transform:uppercase; color:rgba(255,220,190,.6); font-weight:700; }
-#clueStrip { flex:1; display:flex; align-items:center; gap:18px; overflow-x:auto; scroll-snap-type:x mandatory; padding:14px 22px 30px; -webkit-overflow-scrolling:touch; }
+#clueStrip { flex:1; display:flex; align-items:center; justify-content:center; gap:18px; overflow-x:auto; scroll-snap-type:x mandatory; padding:14px 22px 30px; -webkit-overflow-scrolling:touch; }
 .clue-card-wrap { flex-shrink:0; width:min(84vw,360px); height:min(72vh,580px); scroll-snap-align:center; }
 .clue-card { width:100%; height:100%; border-radius:24px; position:relative; box-shadow:0 16px 40px rgba(0,0,0,.4); overflow:hidden; display:flex; flex-direction:column; }
 .cc-badge { padding:16px 14px 8px; text-align:center; }
@@ -362,8 +369,8 @@ body { font-family: 'Lato', sans-serif; background: var(--bg); min-height: 100vh
 
 /* ── SWIPE NAVIGATION: question (home) ↔ leaderboard, swipe left for clue cards ── */
 #game-screen{ position:relative; overflow:hidden; touch-action:pan-y; }
-.swipe-track{ display:flex; width:200vw; min-height:100vh; }
-.swipe-panel{ width:100vw; flex-shrink:0; min-height:100vh; display:flex; flex-direction:column; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+.swipe-track{ display:flex; width:200%; min-height:100vh; }
+.swipe-panel{ width:50%; flex-shrink:0; min-height:100vh; display:flex; flex-direction:column; overflow-y:auto; -webkit-overflow-scrolling:touch; }
 
 .my-score-chip{ margin:12px 14px 4px; background:var(--wine); border-radius:16px; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 3px 12px rgba(122,31,61,.25); }
 .msc-label{ font-size:9px; letter-spacing:2px; text-transform:uppercase; color:rgba(255,255,255,.6); }
@@ -373,8 +380,10 @@ body { font-family: 'Lato', sans-serif; background: var(--bg); min-height: 100vh
 .msc-status.correct{ background:var(--green); }
 .msc-status.wrong{ background:var(--red); }
 
-.swipe-hint{ display:flex; justify-content:space-between; padding:8px 16px 0; font-size:9px; letter-spacing:1.5px; text-transform:uppercase; color:var(--dim); }
-.swipe-hint span.disabled{ opacity:.25; }
+.swipe-hint{ display:flex; justify-content:space-between; gap:8px; padding:10px 14px 0; }
+.swipe-hint span{ flex:1; text-align:center; font-size:11px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:var(--wine); background:#fff; border:1.5px solid var(--border); border-radius:14px; padding:9px 10px; }
+.swipe-hint span:active{ background:var(--bg3); transform:scale(.98); }
+.swipe-hint span.disabled{ opacity:.3; color:var(--dim); cursor:default; }
 
 .lb-panel{ background:var(--bg2); padding:20px 14px 30px; flex:1; }
 .lb-title{ font-family:Georgia,serif; font-size:21px; color:var(--wine); text-align:center; margin-bottom:16px; letter-spacing:1px; }
@@ -1022,7 +1031,7 @@ async function onGameState(gv){
     }
     await displayRoundResult(gv);
   } else if(gv.status==='final'){
-    if(!finalShown){finalShown=true;await sleep(400);renderFinal(gv);}
+    if(!finalShown){finalShown=true;await sleep(400);renderMyResults(gv);}
   }
 }
 
@@ -1240,35 +1249,68 @@ function scoreArr(sc){
   return [];
 }
 
+// Pulse speed ramps from a slow 2s cycle (nobody locked in yet) down to a
+// brisk 1/3s cycle (everyone but you has locked in) — the "beating heart"
+// effect. Recomputed live every time Firebase data changes mid-round.
+function computePulseDuration(gv, round){
+  var playerMap=gv.roster||gv.players||{};
+  var total=Object.keys(playerMap).length||1;
+  var lockedCount=Object.keys((gv.answers||{})[round]||{}).length;
+  var ratio=Math.min(1, lockedCount/total);
+  return Math.max(1/3, 2 - ratio*(2 - 1/3));
+}
+
+// Status for one player's dot on one round: correct/wrong once that round
+// is scored; "locked" once they've locked in; "thinking" (pulsing) once
+// they've picked an option but not yet locked it in; "idle" (static, same
+// blue) if they haven't picked anything yet. Only ever computed for the
+// CURRENT round — past rounds are always correct/wrong, future rounds are
+// always blank, neither needs this.
+function roundDotStatus(gv, pid, round, sc){
+  if(sc[round]!==undefined) return sc[round]?'correct':'wrong';
+  if(((gv.answers||{})[round]||{})[pid]) return 'locked';
+  if(((gv.selecting||{})[round]||{})[pid]) return 'thinking';
+  return 'idle';
+}
+
+function buildRoundDots(gv, pid, sc){
+  var dots='';
+  for(var i=0;i<6;i++){
+    if(i<curRound){
+      dots+='<div class="sg-dot '+(sc[i]?'correct':'wrong')+'"></div>';
+    } else if(i===curRound){
+      var status=roundDotStatus(gv,pid,i,sc);
+      var style = status==='thinking' ? (' style="--pulse-dur:'+computePulseDuration(gv,i)+'s"') : '';
+      dots+='<div class="sg-dot '+status+'"'+style+'></div>';
+    } else {
+      dots+='<div class="sg-dot"></div>';
+    }
+  }
+  return dots;
+}
+
 function buildMyScoreChip(gv){
   var sc=scoreArr((gv.scores||{})[myPid]||pScores[myPid]);
   var doneCount=sc.length, correctCount=sc.filter(Boolean).length;
   var tally=doneCount?correctCount+'/'+doneCount:'0/0';
-  var ans=((gv.answers||{})[curRound]||{})[myPid];
-  var status='choosing';
-  if(sc[curRound]!==undefined) status=sc[curRound]?'correct':'wrong';
-  else if(ans) status='locked';
-  var statusLabel={choosing:'Choosing…',locked:'Locked in',correct:'Correct!',wrong:'Next time!'}[status];
+  var status=roundDotStatus(gv, myPid, curRound, sc);
+  var style = status==='thinking' ? (' style="--pulse-dur:'+computePulseDuration(gv,curRound)+'s"') : '';
+  var statusLabel={idle:'Choosing…',thinking:'Choosing…',locked:'Locked in',correct:'Correct!',wrong:'Next time!'}[status];
   return '<div class="my-score-chip"><div><div class="msc-label">Your Score</div>'+
     '<div class="msc-val">'+tally+'</div></div>'+
-    '<div class="msc-status '+status+'">'+statusLabel+'</div></div>';
+    '<div style="display:flex;align-items:center;gap:8px;">'+
+      '<div class="sg-dot '+status+'"'+style+'></div>'+
+      '<div class="msc-status '+status+'">'+statusLabel+'</div>'+
+    '</div></div>';
 }
 
 function buildLeaderboard(gv){
   var playerMap=gv.roster||gv.players||{};
   var pids=Object.keys(playerMap);
   var scores=gv.scores||{};
-  var answers=gv.answers||{};
-  var activeRound=curRound;
   var rows=pids.map(function(pid){
     var sc=scoreArr(scores[pid]);
-    var correctCount=sc.filter(Boolean).length;
-    var doneCount=sc.length;
-    var ans=(answers[activeRound]||{})[pid];
-    var status='thinking';
-    if(sc[activeRound]!==undefined) status=sc[activeRound]?'correct':'wrong';
-    else if(ans) status='locked';
-    return {pid:pid,name:playerMap[pid]||pid,correctCount:correctCount,doneCount:doneCount,status:status};
+    return {pid:pid,name:playerMap[pid]||pid,correctCount:sc.filter(Boolean).length,doneCount:sc.length,dots:buildRoundDots(gv,pid,sc)};
   });
   // Best performers on top — like golf, but higher is better here
   rows.sort(function(a,b){ return b.correctCount-a.correctCount; });
@@ -1276,7 +1318,7 @@ function buildLeaderboard(gv){
     return '<div class="lb-row'+(r.pid===myPid?' me':'')+'">'+
       '<div class="lb-rank'+(i===0&&r.correctCount>0?' first':'')+'">'+(i===0&&r.correctCount>0?'★':(i+1))+'</div>'+
       '<div class="lb-name">'+r.name+(r.pid===myPid?' (you)':'')+'</div>'+
-      '<div class="sg-dot '+r.status+'"></div>'+
+      '<div class="lb-dots">'+r.dots+'</div>'+
       '<div class="lb-score">'+r.correctCount+'<small>/'+r.doneCount+'</small></div>'+
     '</div>';
   }).join('');
@@ -1318,7 +1360,14 @@ function updateDialogue(line1,line2,line3,line3cls){
 // This ordering matters: it's what makes the live drag preview always
 // match what actually happens on release, in both directions.
 const SWIPE_HOME_IDX = 1;
-function swipePanelX(i){ return -i*window.innerWidth; }
+// Use the game screen's own rendered width, not the full browser window —
+// on a laptop the game now sits in a constrained phone-width column, so
+// window.innerWidth would be far too wide and throw the panels out of sync.
+function swipePanelX(i){
+  var el=document.getElementById('game-screen');
+  var w=el?el.clientWidth:window.innerWidth;
+  return -i*w;
+}
 function swipeGoTo(i){
   swipeIdx=Math.max(0,Math.min(1,i));
   var track=document.getElementById('swipeTrack');
@@ -1327,61 +1376,14 @@ function swipeGoTo(i){
     track.style.transform='translateX('+swipePanelX(swipeIdx)+'px)';
   }
 }
+// Navigation is tap-only now — dragging fought each browser's own built-in
+// edge-swipe gestures (back/forward, switch tabs) too inconsistently across
+// Chrome, Edge, and DuckDuckGo mobile to be worth keeping. The tap links
+// (swipe-hint text, styled as buttons) are the single reliable path;
+// setupGameSwipe's only remaining job is resetting the view to the
+// question every time a new round renders.
 function setupGameSwipe(){
-  swipeGoTo(SWIPE_HOME_IDX); // always land back on the question when a new round renders
-  if(gameSwipeBound) return;
-  gameSwipeBound=true;
-  var stage=document.getElementById('game-screen');
-  var dragging=false, startX=0, startY=0, trackXStart=0, horiz=false;
-  stage.addEventListener('pointerdown',function(e){
-    dragging=true; startX=e.clientX; startY=e.clientY; trackXStart=swipePanelX(swipeIdx); horiz=false;
-  });
-  stage.addEventListener('pointermove',function(e){
-    if(!dragging) return;
-    var dx=e.clientX-startX, dy=e.clientY-startY;
-    if(!horiz){
-      // Decide swipe vs. native vertical scroll once movement is clear enough
-      if(Math.abs(dx)>12 && Math.abs(dx)>Math.abs(dy)) horiz=true;
-      else if(Math.abs(dy)>12){ dragging=false; return; }
-    }
-    if(!horiz) return;
-    // Once this is confirmed as our horizontal swipe, stop the browser from
-    // also treating it as its own gesture (edge-swipe back/forward, or
-    // switching tabs) — without this, a strong horizontal drag can trigger
-    // both our in-page navigation AND the browser's native one at the same
-    // time, which is what "opens a new window" almost certainly was.
-    e.preventDefault();
-    // Only visually follow the drag when it's moving toward a real panel —
-    // rightward at home (reveals leaderboard) or leftward at leaderboard
-    // (returns home). The other two directions have nothing real to slide
-    // into view, so the screen holds still for those; we still track dx
-    // below to detect the gesture itself on release.
-    var revealsRealPanel = (swipeIdx===SWIPE_HOME_IDX && dx>0) || (swipeIdx===0 && dx<0);
-    if(revealsRealPanel){
-      var track=document.getElementById('swipeTrack');
-      if(track){ track.style.transition='none'; track.style.transform='translateX('+(trackXStart+dx)+'px)'; }
-    }
-  },{passive:false});
-  function endDrag(e){
-    if(!dragging) return; dragging=false;
-    if(!horiz) return;
-    var dx=(e.clientX!=null?e.clientX:startX)-startX;
-    if(dx>60){
-      // swiped right — reveal the leaderboard
-      if(swipeIdx===SWIPE_HOME_IDX) swipeGoTo(0); else swipeGoTo(swipeIdx);
-    } else if(dx<-60){
-      // swiped left — open clue cards if home and available, else go home
-      if(swipeIdx===SWIPE_HOME_IDX){
-        var r=ROUNDS[curRound];
-        if(r.key==='g' && gData && gData[r.key]) openClueCards(gData[r.key].opts);
-        swipeGoTo(SWIPE_HOME_IDX);
-      } else { swipeGoTo(SWIPE_HOME_IDX); }
-    } else {
-      swipeGoTo(swipeIdx);
-    }
-  }
-  stage.addEventListener('pointerup',endDrag);
-  stage.addEventListener('pointercancel',endDrag);
+  swipeGoTo(SWIPE_HOME_IDX);
 }
 
 function renderRound(gv){
@@ -1453,6 +1455,9 @@ function renderRound(gv){
       document.querySelectorAll('.opt-btn').forEach(b=>b.classList.remove('sel'));
       btn.classList.add('sel');
       document.getElementById('cbtn').disabled=false;
+      // Flag "picked something, not locked yet" for everyone's leaderboard —
+      // doesn't reveal which option, just that this player is now pulsing
+      if(gameRef) gameRef.child('selecting/'+curRound+'/'+myPid).set(true);
     });
     az.appendChild(btn);
   });
@@ -1518,7 +1523,63 @@ function lockIn(){
   if(gameRef)gameRef.child('answers/'+curRound+'/'+myPid).set(selVal);
 }
 
+let lastFinalGv=null; // kept so the "back to my results" link can rebuild it on demand
+
+function renderMyResults(gv, autoAdvance){
+  if(autoAdvance===undefined) autoAdvance=true;
+  lastFinalGv=gv;
+  var scr=document.getElementById('game-screen');
+  var sc=scoreArr((gv.scores||{})[myPid]);
+  var correctCount=sc.filter(Boolean).length;
+  var rows='';
+  ROUNDS.forEach(function(r,i){
+    var given=((gv.answers||{})[i]||{})[myPid]||'—';
+    var correct=gData?gData[r.key].correct:'';
+    var wasCorrect=!!sc[i];
+    rows+='<div style="display:grid;grid-template-columns:80px 1fr 1fr;border-bottom:1px solid var(--bg3);">'+
+      '<div style="padding:9px 10px;font-size:10px;letter-spacing:1px;color:var(--dim);text-transform:uppercase;font-weight:700;background:var(--bg3);display:flex;align-items:center;">'+r.label+'</div>'+
+      '<div style="padding:9px 10px;font-size:13px;font-weight:700;color:'+(wasCorrect?'var(--green)':'var(--red)')+';">'+given+'</div>'+
+      '<div style="padding:9px 10px;font-size:13px;font-weight:700;color:var(--green);">'+correct+'</div>'+
+    '</div>';
+  });
+  scr.innerHTML=
+    '<div style="background:var(--wine);padding:14px;text-align:center;">'+
+      '<div style="font-family:Georgia,serif;font-size:20px;color:#f5c842;letter-spacing:4px;">YOUR RESULTS</div>'+
+    '</div>'+
+    '<div class="fin-scr">'+
+      '<div class="fin-ttl" style="margin-top:6px;">'+correctCount+'<span style="font-size:16px;color:var(--dim);"> / 6 correct</span></div>'+
+      '<div style="width:100%;max-width:360px;background:#fff;border:1.5px solid var(--border);border-radius:16px;overflow:hidden;margin:16px 0 20px;box-shadow:0 2px 12px rgba(0,0,0,.07);">'+
+        '<div style="display:grid;grid-template-columns:80px 1fr 1fr;background:var(--wine);">'+
+          '<div style="padding:7px 10px;font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.7);text-transform:uppercase;font-weight:700;"></div>'+
+          '<div style="padding:7px 10px;font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.7);text-transform:uppercase;font-weight:700;">Your Pick</div>'+
+          '<div style="padding:7px 10px;font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.7);text-transform:uppercase;font-weight:700;">Correct</div>'+
+        '</div>'+
+        rows+
+      '</div>'+
+      '<div style="font-size:11px;color:var(--dim);letter-spacing:1px;">'+(autoAdvance?'Full leaderboard in a few seconds&hellip;':'')+'</div>'+
+      (autoAdvance?'':'<button onclick="renderFinal(lastFinalGv)" style="margin-top:12px;background:var(--wine);border:none;border-radius:12px;padding:12px 20px;color:#fff;font-size:12px;font-weight:700;letter-spacing:.5px;cursor:pointer;">Leaderboard &rarr;</button>')+
+    '</div>';
+  if(autoAdvance) setTimeout(function(){ renderFinal(gv); }, 4000);
+}
+
+function shareMyResults(){
+  var sc=scoreArr(pScores[myPid]);
+  var correctCount=sc.filter(Boolean).length;
+  var text='I scored '+correctCount+'/6 in Wuzzle — The Wine Puzzle! 🍷 Can you beat me?';
+  var url=window.location.href.split('?')[0];
+  if(navigator.share){
+    navigator.share({title:'My Wuzzle score',text:text,url:url}).catch(function(){});
+  } else if(navigator.clipboard){
+    navigator.clipboard.writeText(text+' '+url).then(function(){
+      toast('Copied! Paste it to share your score.');
+    }).catch(function(){ toast(text); });
+  } else {
+    toast(text);
+  }
+}
+
 function renderFinal(gv){
+  lastFinalGv=gv;
   var scr=document.getElementById('game-screen');
   var sc=gv.scores||{},pl=gv.roster||gv.players||{};
   var tots=Object.keys(pl).map(function(pid){
@@ -1549,8 +1610,12 @@ function renderFinal(gv){
       '<div class="fin-trp">'+trop+'</div>'+
       '<div class="fin-ttl">'+(win&&win.me?'You Win! 🎉':(win?win.name+' Wins!':'Game Over!'))+'</div>'+
       '<div class="fin-wine">You were tasting:<br><strong>'+wine+'</strong></div>'+
-      '<div style="width:100%;max-width:360px;background:#fff;border:1.5px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:24px;animation:scaleIn .5s .5s ease both;opacity:0;animation-fill-mode:both;box-shadow:0 2px 12px rgba(0,0,0,.07);">'+
+      '<div style="width:100%;max-width:360px;background:#fff;border:1.5px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:20px;animation:scaleIn .5s .5s ease both;opacity:0;animation-fill-mode:both;box-shadow:0 2px 12px rgba(0,0,0,.07);">'+
         lbRows+
+      '</div>'+
+      '<div style="display:flex;gap:10px;width:100%;max-width:360px;">'+
+        '<button onclick="renderMyResults(lastFinalGv,false)" style="flex:1;background:transparent;border:1.5px solid var(--border);border-radius:12px;padding:12px;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.5px;cursor:pointer;">&larr; My Results</button>'+
+        '<button onclick="shareMyResults()" style="flex:1;background:var(--wine);border:none;border-radius:12px;padding:12px;color:#fff;font-size:12px;font-weight:700;letter-spacing:.5px;cursor:pointer;">&#128228; Share My Score</button>'+
       '</div>'+
     '</div>';
   
