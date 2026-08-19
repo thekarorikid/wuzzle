@@ -73,6 +73,7 @@ body { font-family: 'Lato', sans-serif; background: #241019; min-height: 100vh; 
 #landing {
   min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;
   padding:40px 24px; background:linear-gradient(160deg,#fdf0e4 0%,#f5d8c0 50%,#eddabf 100%);
+  position:relative;
 }
 .l-drop  { font-size:64px; margin-bottom:10px; animation:fadeDown .7s ease both; filter:drop-shadow(0 4px 14px rgba(122,31,61,.2)); }
 .l-logo  { font-family:Georgia,serif; font-size:52px; color:var(--wine); letter-spacing:10px; margin-bottom:4px; animation:fadeDown .7s .1s ease both; }
@@ -415,6 +416,7 @@ body { font-family: 'Lato', sans-serif; background: #241019; min-height: 100vh; 
       <div class="r-desc">Join a game with a code and play</div>
     </div>
   </div>
+  <div style="position:absolute;bottom:14px;left:0;right:0;text-align:center;font-size:10px;letter-spacing:1px;color:var(--dim);opacity:.6;">&copy; Chris, 2026. Wuzzle &mdash; The Wine Puzzle.</div>
 </div>
 
 <div id="host-view">
@@ -577,7 +579,13 @@ const GRAPES = {
   semillon: { label:"Sémillon", bg:["#f5efc0","#ddc667"], ink:"#241c05", accent:"#8a6a10",
     words:[{w:"lemon",t:5},{w:"lanolin",t:4},{w:"oak",t:4},{w:"vanilla",t:3},{w:"straw",t:3},{w:"honey",t:3},{w:"citrus",t:2},{w:"gold",t:2},{w:"apricot",t:2},{w:"spice",t:2},{w:"grapefruit",t:2},{w:"butterscotch",t:2},{w:"sweetness",t:2},{w:"herbs",t:2},{w:"bread",t:2},{w:"wax",t:2},{w:"beeswax",t:2},{w:"leesy",t:1},{w:"pear",t:1},{w:"green",t:1},{w:"cream",t:1},{w:"toasty",t:1},{w:"bouquet",t:1},{w:"fragrance",t:1},{w:"perfume",t:1},{w:"papaya",t:1},{w:"mango",t:1},{w:"fig",t:1},{w:"hazelnut",t:1},{w:"dried grass",t:1},{w:"nuts",t:1}]},
   gewurztraminer: { label:"Gewürztraminer", bg:["#f3e9d0","#dcc088"], ink:"#2a180a", accent:"#8a3a4a",
-    words:[{w:"spicy",t:5},{w:"lychees",t:4},{w:"musk",t:4},{w:"roses",t:4},{w:"citrus",t:3},{w:"lemony",t:3},{w:"orange",t:3},{w:"jasmine",t:2},{w:"ginger",t:2},{w:"exotic",t:2},{w:"toasty",t:2},{w:"spices",t:2},{w:"honeyed",t:2},{w:"pepper",t:2},{w:"fragrant",t:2},{w:"floral",t:2},{w:"oily",t:2},{w:"sweetness",t:1},{w:"powdery",t:1},{w:"turkish delight",t:1},{w:"petals",t:1},{w:"scented",t:1},{w:"clove",t:1},{w:"apricot",t:1},{w:"stone fruit",t:1},{w:"perfumed",t:1},{w:"tropical",t:1},{w:"mango",t:1},{w:"nutmeg",t:1}]}
+    words:[{w:"spicy",t:5},{w:"lychees",t:4},{w:"musk",t:4},{w:"roses",t:4},{w:"citrus",t:3},{w:"lemony",t:3},{w:"orange",t:3},{w:"jasmine",t:2},{w:"ginger",t:2},{w:"exotic",t:2},{w:"toasty",t:2},{w:"spices",t:2},{w:"honeyed",t:2},{w:"pepper",t:2},{w:"fragrant",t:2},{w:"floral",t:2},{w:"oily",t:2},{w:"sweetness",t:1},{w:"powdery",t:1},{w:"turkish delight",t:1},{w:"petals",t:1},{w:"scented",t:1},{w:"clove",t:1},{w:"apricot",t:1},{w:"stone fruit",t:1},{w:"perfumed",t:1},{w:"tropical",t:1},{w:"mango",t:1},{w:"nutmeg",t:1}]},
+  chardonnay: { label:"Chardonnay", bg:["#f5e8b8","#dcc06a"], ink:"#2a1e08", accent:"#8a6a15",
+    words:[{w:"apple",t:5},{w:"citrus",t:4},{w:"vanilla",t:4},{w:"butter",t:4},{w:"pear",t:3},{w:"peach",t:3},{w:"toast",t:3},{w:"creamy",t:3},{w:"pineapple",t:2},{w:"melon",t:2},{w:"tropical",t:2},{w:"caramel",t:2},{w:"baking spice",t:2},{w:"hazelnut",t:2},{w:"minerality",t:2},{w:"lemon",t:2},{w:"mango",t:2},{w:"honeysuckle",t:1},{w:"elderflower",t:1},{w:"lime",t:1},{w:"floral",t:1},{w:"almond",t:1},{w:"chalk",t:1},{w:"flint",t:1},{w:"coconut",t:1},{w:"stone fruit",t:1},{w:"gold",t:1},{w:"oyster shell",t:1},{w:"spice",t:1},{w:"nutty",t:1}]},
+  malbec: { label:"Malbec", bg:["#4a0f22","#230710"], ink:"#f2d6cc", accent:"#c77a6a",
+    words:[{w:"plum",t:5},{w:"blackberry",t:4},{w:"black cherry",t:4},{w:"cocoa",t:3},{w:"tobacco",t:3},{w:"pepper",t:3},{w:"leather",t:3},{w:"violet",t:3},{w:"raspberry",t:2},{w:"vanilla",t:2},{w:"chocolate",t:2},{w:"coffee",t:2},{w:"jammy",t:2},{w:"blueberry",t:1},{w:"smoke",t:1},{w:"mocha",t:1},{w:"earthy",t:1},{w:"inky",t:1},{w:"spice",t:1},{w:"licorice",t:1},{w:"herbal",t:1},{w:"savoury",t:1},{w:"meaty",t:1},{w:"molasses",t:1},{w:"raisin",t:1},{w:"forest floor",t:1},{w:"clay",t:1},{w:"rustic",t:1}]},
+  grenache: { label:"Grenache", bg:["#8a2a30","#4a1216"], ink:"#f5dcd0", accent:"#e0a090",
+    words:[{w:"strawberry",t:5},{w:"raspberry",t:4},{w:"red fruit",t:4},{w:"cherry",t:3},{w:"floral",t:3},{w:"fruity",t:3},{w:"fresh",t:2},{w:"juicy",t:2},{w:"spice",t:2},{w:"garnet",t:1},{w:"candied",t:1},{w:"pepper",t:1},{w:"herbs",t:1},{w:"kirsch",t:1},{w:"rosehip",t:1},{w:"orange peel",t:1},{w:"licorice",t:1},{w:"earthy",t:1},{w:"warm",t:1},{w:"brick",t:1}]}
 };
 
 // map a free-text answer option to a GRAPES key, handling common aliases
