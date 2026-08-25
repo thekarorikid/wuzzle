@@ -422,6 +422,14 @@ body { font-family: 'Lato', sans-serif; background: #241019; min-height: 100vh; 
 
 <div id="host-view">
   <div class="h-hdr"><div class="h-logo">WUZZLE</div><div class="h-sub">Maker Control Panel</div></div>
+  <div class="h-card" style="max-width:960px;margin:0 auto 14px;">
+    <div class="h-ctit">&#x1F511; Already created a game?</div>
+    <div class="f-row">
+      <input class="f-inp" id="resumeCode" placeholder="Game code, e.g. X77X" maxlength="4" style="text-transform:uppercase;" autocapitalize="characters">
+      <button onclick="resumeGame()" style="background:var(--wine);border:none;border-radius:8px;padding:8px 16px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">Resume</button>
+    </div>
+    <div style="font-size:11px;color:var(--dim);margin-top:4px;">Loads it back in below so you can fix any answers you missed &mdash; even after players have joined.</div>
+  </div>
   <div class="h-grid" id="wine-setup">
     <div class="h-card"><div class="h-ctit">&#x1F33F; Flavour</div>
       <div class="f-row"><span class="f-lbl">Correct</span><input class="f-inp" id="f0" value="Blackcurrant"><span class="c-tag">&#x2713;</span></div>
@@ -453,6 +461,10 @@ body { font-family: 'Lato', sans-serif; background: #241019; min-height: 100vh; 
       <div class="f-row"><span class="f-lbl">Option 2</span><input class="f-inp" id="w1" value="Craggy Range"></div>
       <div class="f-row"><span class="f-lbl">Option 3</span><input class="f-inp" id="w2" value="Trinity Hill"></div>
     </div>
+  </div>
+  <div id="resume-save-wrap" style="display:none;max-width:960px;margin:0 auto 16px;text-align:center;">
+    <button onclick="saveGameEdits()" style="background:var(--green);border:none;border-radius:12px;padding:12px 24px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;">&#128190; Save Updated Answers</button>
+    <div style="font-size:11px;color:var(--dim);margin-top:6px;">Safe to fix rounds nobody's reached yet. Editing a round players already answered won't change their score for it &mdash; just be aware the "correct answer" shown on their results screen will reflect whatever you save here.</div>
   </div>
   <div class="lobby" id="lobby-box">
     <div class="lb-top">
@@ -725,6 +737,52 @@ function hostLaunch(){
   gameRef.update({hostReady:true});
   toast('Room created! Code: '+gameCode);
 }
+
+function resumeGame(){
+  var code=document.getElementById('resumeCode').value.trim().toUpperCase();
+  if(!code||code.length!==4){toast('Enter the 4-letter game code',true);return;}
+  db.ref('games/'+code).once('value',function(s){
+    if(!s.exists()){toast('No game found with that code',true);return;}
+    var gv=s.val();
+    gameCode=code;
+    gameRef=db.ref('games/'+gameCode);
+    gData=gv.gameData||gData;
+
+    // Re-populate the setup fields from what's actually saved for this game
+    ['f','g','c','r','v','w'].forEach(function(k){
+      var d=gData[k]; if(!d)return;
+      document.getElementById(k+'0').value=d.correct;
+      var others=d.opts.filter(function(o){return o!==d.correct;});
+      document.getElementById(k+'1').value=others[0]||'';
+      document.getElementById(k+'2').value=others[1]||'';
+    });
+
+    // Unlike a fresh launch, fields stay fully editable — that's the point
+    document.getElementById('wine-setup').style.opacity='1';
+    document.getElementById('wine-setup').style.pointerEvents='auto';
+    document.getElementById('resume-save-wrap').style.display='block';
+
+    document.getElementById('hcode').textContent=gameCode;
+    document.getElementById('hjoin').textContent=window.location.href.split('?')[0]+'?code='+gameCode;
+    document.getElementById('hlaunch').classList.add('hidden');
+    document.getElementById('hready-msg').style.display='block';
+    document.getElementById('qrcode-wrap').style.display='none';
+    // Only offer Start if the game hasn't actually begun yet
+    document.getElementById('hstart-wrap').style.display=(gv.status==='lobby')?'block':'none';
+    if(gv.status!=='lobby') makerGameReady=true;
+
+    gameRef.child('players').on('value',function(s2){pNames=s2.val()||{};updateHPList();});
+    toast('Game '+gameCode+' loaded — edit and save below.');
+  });
+}
+
+function saveGameEdits(){
+  if(!gameRef){toast('No game loaded',true);return;}
+  gData=buildGD();
+  gameRef.update({gameData:gData});
+  toast('Answers updated for game '+gameCode+'!');
+}
+
 function hostStart(){
   var ns=Object.keys(pNames);
   if(!ns.length){toast('Wait for at least one player to join!',true);return;}
