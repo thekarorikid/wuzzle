@@ -397,6 +397,7 @@ body { font-family: 'Lato', sans-serif; background: #241019; min-height: 100vh; 
 .lb-score{ font-family:Georgia,serif; font-size:18px; color:var(--wine); flex-shrink:0; }
 .lb-score small{ font-size:11px; color:var(--dim); font-family:'Lato',sans-serif; }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
 
@@ -405,7 +406,7 @@ body { font-family: 'Lato', sans-serif; background: #241019; min-height: 100vh; 
   <div class="l-logo">WUZZLE</div>
   <div class="l-tag">The Wine Puzzle</div>
   <div class="role-cards">
-    <div class="role-card" onclick="goHost()">
+    <div class="role-card" id="makerCard" onclick="goHost()">
       <div class="r-icon">&#x1F3A9;</div>
       <div class="r-title">Maker</div>
       <div class="r-desc">Build a game, share the code &mdash; then step back</div>
@@ -460,6 +461,13 @@ body { font-family: 'Lato', sans-serif; background: #241019; min-height: 100vh; 
         <div class="code-d" id="hcode">&mdash;</div>
         <div class="join-url" id="hjoin"></div>
         <button onclick="shareGame()" style="margin-top:8px;display:inline-flex;align-items:center;gap:6px;background:var(--bg3);border:1.5px solid var(--border);border-radius:16px;padding:6px 14px;cursor:pointer;font-family:Lato,sans-serif;font-size:11px;color:var(--muted);">&#128228; Share</button>
+        <button onclick="showQRCode()" style="margin-top:8px;margin-left:6px;display:inline-flex;align-items:center;gap:6px;background:var(--bg3);border:1.5px solid var(--border);border-radius:16px;padding:6px 14px;cursor:pointer;font-family:Lato,sans-serif;font-size:11px;color:var(--muted);">&#128241; QR Code</button>
+        <div id="qrcode-wrap" style="display:none;margin-top:14px;text-align:center;">
+          <div id="qrcode-container" style="display:inline-block;padding:12px;background:#fff;border-radius:12px;border:1.5px solid var(--border);"></div>
+          <div style="margin-top:8px;">
+            <a id="qr-download-link" download="wuzzle-qr.png" style="display:none;background:var(--wine);border-radius:10px;padding:8px 16px;color:#fff;font-size:12px;font-weight:700;text-decoration:none;">&#11015; Save QR Code</a>
+          </div>
+        </div>
       </div>
       <div class="p-count" id="hpcount">0 players joined</div>
     </div>
@@ -925,6 +933,29 @@ function shareGame(){
   }
 }
 
+function showQRCode(){
+  if(!gameCode){toast('No game code yet',true);return;}
+  var url=window.location.href.split('?')[0]+'?code='+gameCode;
+  var wrap=document.getElementById('qrcode-wrap');
+  var container=document.getElementById('qrcode-container');
+  var link=document.getElementById('qr-download-link');
+  container.innerHTML='';
+  link.style.display='none';
+  wrap.style.display='block';
+  new QRCode(container,{text:url,width:220,height:220,colorDark:'#7a1f3d',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
+  // The library renders async-ish (a tick or two), so grab the canvas
+  // shortly after rather than immediately — grabbing it too early gets a
+  // blank image.
+  setTimeout(function(){
+    var canvas=container.querySelector('canvas');
+    if(canvas){
+      link.href=canvas.toDataURL('image/png');
+      link.download='wuzzle-'+gameCode+'-qr.png';
+      link.style.display='inline-block';
+    }
+  },200);
+}
+
 
 let gameCode,gameRef,myName,myPid;
 let curRound=0,selVal=null,answered=false,allLockedHandled=false;
@@ -1125,12 +1156,7 @@ async function runReveal(gv){
   }
   ov.style.display='none';
 
-  var nextRound=curRound+1;
-  if(nextRound>=6){
-    gameRef.update({status:'final',round:6,scores:pScores});
-  } else {
-    gameRef.update({status:'revealed',round:curRound,scores:pScores});
-  }
+  gameRef.update({status:'revealed',round:curRound,scores:pScores});
 }
 
 async function displayRoundResult(gv){
@@ -1165,10 +1191,10 @@ async function displayRoundResult(gv){
   ro.style.display='none';ro.style.opacity='1';ro.style.transition='';
 
   updateScorePanels(gv);
-  showRoundResult(cor, myAns, correct);
+  showRoundResult(cor, myAns, correct, gv);
 }
 
-function showRoundResult(correctAnswer, myAnswer, correct){
+function showRoundResult(correctAnswer, myAnswer, correct, gv){
   // Update dialogue to show result
   updateDialogue(
     'Question '+(curRound+1)+': '+ROUNDS[curRound].label,
@@ -1201,19 +1227,55 @@ function showRoundResult(correctAnswer, myAnswer, correct){
     '<div style="padding:9px 10px;font-size:13px;font-weight:700;color:var(--green);">'+correctAnswer+'</div>';
   tbl.appendChild(row);
 
+  var isLast=(curRound>=5);
+  var tbl2=document.getElementById('results-table');
+
+  if(isLast){
+    // The full wine, revealed only once every round's answer is in —
+    // Year, Winery, Region, Grape, e.g. "2020 Te Awanga Estate Hawkes Bay Syrah"
+    var wineLine=document.createElement('div');
+    wineLine.style.cssText='margin:14px 14px 4px;text-align:center;font-size:13px;color:var(--muted);line-height:1.5;';
+    wineLine.innerHTML='You have been tasting a<br><strong style="font-family:Georgia,serif;font-size:16px;color:var(--wine);">'+buildWineName(gData)+'</strong>';
+    tbl2.after(wineLine);
+
+    var choiceWrap=document.createElement('div');
+    choiceWrap.style.cssText='display:flex;gap:10px;margin:14px 14px 20px;';
+    var myResBtn=document.createElement('button');
+    myResBtn.className='next-q-btn';
+    myResBtn.style.cssText='flex:1;margin:0;';
+    myResBtn.textContent='Your Results';
+    var lbBtn=document.createElement('button');
+    lbBtn.className='next-q-btn';
+    lbBtn.style.cssText='flex:1;margin:0;background:transparent;border:1.5px solid var(--wine);color:var(--wine);';
+    lbBtn.textContent='Leaderboard';
+    function goFinal(which){
+      myResBtn.disabled=true; lbBtn.disabled=true;
+      finalShown=true; // this client is navigating manually, skip the automatic default
+      gameRef.transaction(function(cur){
+        if(!cur || cur.status!=='revealed') return;
+        cur.status='final'; cur.round=6; cur.scores=pScores;
+        return cur;
+      },function(err,committed){
+        if(which==='results') renderMyResults(gv,false); else renderFinal(gv);
+      });
+    }
+    myResBtn.onclick=function(){ goFinal('results'); };
+    lbBtn.onclick=function(){ goFinal('leaderboard'); };
+    choiceWrap.appendChild(myResBtn); choiceWrap.appendChild(lbBtn);
+    wineLine.after(choiceWrap);
+    return;
+  }
+
   // Show Next Question button — any player can advance; the transaction
   // below already ensures only the first tap actually moves the game on,
   // so there's no race condition even if several people tap at once.
-  var isLast=(curRound>=5);
-  var tbl2=document.getElementById('results-table');
   var nextBtn=document.createElement('button');
   nextBtn.className='next-q-btn';
-  nextBtn.textContent=isLast?'See Final Results →':'Next Question →';
+  nextBtn.textContent='Next Question →';
   nextBtn.onclick=function(){
     nextBtn.disabled=true;
     nextBtn.textContent='Loading...';
     var nextR=curRound+1;
-    var isLastLocal=(nextR>=6);
     // One atomic transaction on the whole game node — status, round, and
     // scores all change together in a single write. The old version did
     // this as two separate writes (flip status, then separately update
@@ -1223,9 +1285,9 @@ function showRoundResult(correctAnswer, myAnswer, correct){
     // to the new one. One write means there's no in-between state to misread.
     gameRef.transaction(function(cur){
       if(!cur || cur.status!=='revealed') return; // abort, not in the expected state
-      cur.status = isLastLocal ? 'final' : 'playing';
-      cur.round = isLastLocal ? 6 : nextR;
-      if(!isLastLocal) cur.revealed = false;
+      cur.status = 'playing';
+      cur.round = nextR;
+      cur.revealed = false;
       cur.scores = pScores;
       return cur;
     },function(err,committed){
@@ -1235,6 +1297,11 @@ function showRoundResult(correctAnswer, myAnswer, correct){
     });
   };
   if(tbl2)tbl2.after(nextBtn);
+}
+
+function buildWineName(gd){
+  if(!gd) return '';
+  return gd.v.correct+' '+gd.w.correct+' '+gd.r.correct+' '+gd.g.correct;
 }
 
 function getGridCols(numPlayers){
@@ -1327,9 +1394,19 @@ function buildLeaderboard(gv){
   });
   // Best performers on top — like golf, but higher is better here
   rows.sort(function(a,b){ return b.correctCount-a.correctCount; });
-  var html=rows.map(function(r,i){
+  // Competition ranking: tied players share a rank, and the rank after a
+  // tie group skips ahead by however many shared it (1,1,1,1,5,5,5,8…) —
+  // not a plain sequential count, which misleadingly implies a strict order
+  // between players who actually scored the same.
+  var rank=1;
+  rows.forEach(function(r,i){
+    if(i>0 && rows[i-1].correctCount===r.correctCount) r.rank=rows[i-1].rank;
+    else r.rank=i+1;
+  });
+  var html=rows.map(function(r){
+    var isFirst = r.rank===1 && r.correctCount>0;
     return '<div class="lb-row'+(r.pid===myPid?' me':'')+'">'+
-      '<div class="lb-rank'+(i===0&&r.correctCount>0?' first':'')+'">'+(i===0&&r.correctCount>0?'★':(i+1))+'</div>'+
+      '<div class="lb-rank'+(isFirst?' first':'')+'">'+(isFirst?'★':r.rank)+'</div>'+
       '<div class="lb-name">'+r.name+(r.pid===myPid?' (you)':'')+'</div>'+
       '<div class="lb-dots">'+r.dots+'</div>'+
       '<div class="lb-score">'+r.correctCount+'<small>/'+r.doneCount+'</small></div>'+
@@ -1539,7 +1616,7 @@ function lockIn(){
 let lastFinalGv=null; // kept so the "back to my results" link can rebuild it on demand
 
 function renderMyResults(gv, autoAdvance){
-  if(autoAdvance===undefined) autoAdvance=true;
+  if(autoAdvance===undefined) autoAdvance=false;
   lastFinalGv=gv;
   var scr=document.getElementById('game-screen');
   var sc=scoreArr((gv.scores||{})[myPid]);
@@ -1636,24 +1713,35 @@ function renderFinal(gv){
 }
 
 window.addEventListener('DOMContentLoaded',function(){
-  var urlCode=new URLSearchParams(window.location.search).get('code');
+  var params=new URLSearchParams(window.location.search);
+  var isMaker=(params.get('maker')==='1');
+  var makerCard=document.getElementById('makerCard');
+  if(isMaker){ if(makerCard) makerCard.style.display=''; }
+  else { if(makerCard) makerCard.remove(); } // never present in the DOM for a normal visitor — not just hidden with CSS
+
+  var urlCode=params.get('code');
   if(urlCode){goPlayer();document.getElementById('jcode').value=urlCode.toUpperCase();return;}
   // Auto-restore if we were mid-game
   var savedCode=sessionStorage.getItem('wuzzle_code');
   var savedName=sessionStorage.getItem('wuzzle_name');
   if(savedCode&&savedName){
     db.ref('games/'+savedCode).once('value',function(s){
-      if(!s.exists()){sessionStorage.removeItem('wuzzle_code');return;}
+      if(!s.exists()){sessionStorage.removeItem('wuzzle_code');if(!isMaker)goPlayer();return;}
       var gv=s.val();
       var savedPid=sessionStorage.getItem('wuzzle_pid_'+savedCode);
       var existingPid=savedPid||findPlayerByName(gv.players||{},savedName);
-      if(!existingPid){sessionStorage.removeItem('wuzzle_code');return;}
+      if(!existingPid){sessionStorage.removeItem('wuzzle_code');if(!isMaker)goPlayer();return;}
       goPlayer();
       document.getElementById('jcode').value=savedCode;
       document.getElementById('jname').value=savedName;
       connectAsExisting(savedCode,savedName,existingPid,gv);
     });
+    return;
   }
+  // No code, no saved session, not a maker link — skip the tile choice
+  // entirely so a casual visitor to the bare URL lands straight in the
+  // join screen, never seeing a decision to make at all.
+  if(!isMaker) goPlayer();
 });
 </script>
 </body>
