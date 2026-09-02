@@ -143,6 +143,28 @@ body { font-family: 'Lato', sans-serif; background: #241019; min-height: 100vh; 
 .w-stat { font-size:11px; color:var(--dim); letter-spacing:3px; text-transform:uppercase; animation:pulse 1.8s ease-in-out infinite; }
 .w-ps   { margin-top:28px; display:flex; flex-wrap:wrap; gap:8px; justify-content:center; max-width:320px; }
 
+#team-screen {
+  display:none; min-height:100vh; flex-direction:column; align-items:center;
+  padding:40px 0 60px; text-align:center; background:linear-gradient(160deg,#fdf0e4 0%,#f5d8c0 60%,#eddabf 100%);
+}
+.tm-card { background:#fff; border:1.5px solid var(--border); border-radius:16px; padding:16px; margin-bottom:14px; text-align:left; box-shadow:0 2px 10px rgba(0,0,0,.05); }
+.tm-card.mine { border-color:var(--wine); background:#fdeef2; }
+.tm-card-hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.tm-name { font-family:Georgia,serif; font-size:17px; color:var(--wine); }
+.tm-count { font-size:11px; color:var(--dim); }
+.tm-member-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-top:1px solid var(--bg3); }
+.tm-member-row:first-of-type { border-top:none; }
+.tm-member-name { flex:1; font-size:13px; color:var(--text); }
+.tm-cap-badge { font-size:10px; background:var(--gold); color:#3a2a00; padding:2px 8px; border-radius:8px; font-weight:700; letter-spacing:.5px; }
+.tm-make-cap { font-size:10px; background:transparent; border:1px solid var(--border); border-radius:8px; padding:3px 8px; color:var(--muted); cursor:pointer; }
+.tm-join-btn { width:100%; margin-top:8px; background:var(--wine); border:none; border-radius:10px; padding:9px; color:#fff; font-size:13px; font-weight:700; cursor:pointer; }
+.tm-join-btn:disabled { opacity:.4; cursor:not-allowed; }
+.tm-leave-btn { width:100%; margin-top:8px; background:transparent; border:1.5px solid var(--red); border-radius:10px; padding:8px; color:var(--red); font-size:12px; font-weight:700; cursor:pointer; }
+.tm-create-wrap { background:#fff; border:1.5px dashed var(--border); border-radius:16px; padding:16px; text-align:center; }
+.tm-create-inp { width:100%; background:var(--bg3); border:1.5px solid var(--border); border-radius:10px; padding:11px; font-size:14px; text-align:center; margin-bottom:8px; font-family:'Lato',sans-serif; }
+.tm-create-btn { width:100%; background:var(--wine); border:none; border-radius:10px; padding:11px; color:#fff; font-size:14px; font-weight:700; cursor:pointer; }
+.tm-rename-inp { background:var(--bg3); border:1.5px solid var(--border); border-radius:8px; padding:5px 8px; font-size:14px; font-family:Georgia,serif; color:var(--wine); width:140px; }
+
 /* ══════════════════════════════════════════
    GAME SCREEN — THREE ZONE LAYOUT
 ══════════════════════════════════════════ */
@@ -523,6 +545,13 @@ body { font-family: 'Lato', sans-serif; background: #241019; min-height: 100vh; 
         &#128228; Share this game
       </button>
     </div>
+    <div id="wteam-wrap" style="margin-top:14px;">
+      <button onclick="goTeams()" id="wteam-btn"
+        style="display:flex;align-items:center;gap:8px;background:var(--wine);border:none;border-radius:20px;padding:10px 20px;cursor:pointer;font-family:Lato,sans-serif;font-size:13px;font-weight:700;color:#fff;margin:0 auto;width:auto;">
+        &#x1F465; Go Teams!
+      </button>
+      <div id="wteam-status" style="font-size:11px;color:var(--dim);margin-top:6px;letter-spacing:.5px;"></div>
+    </div>
     <div id="wstart-area" style="margin-top:20px;width:100%;max-width:320px;display:none;">
       <div id="wstart-wrap" style="text-align:center;">
         <button onclick="startGameFromWaiting()"
@@ -534,6 +563,12 @@ body { font-family: 'Lato', sans-serif; background: #241019; min-height: 100vh; 
     </div>
   </div>
   <div id="game-screen"></div>
+  <div id="team-screen">
+    <div class="w-icon">&#x1F465;</div>
+    <div class="w-logo" style="font-size:30px;">TEAMS</div>
+    <button onclick="backToWaiting()" style="margin:10px auto 4px;display:block;background:transparent;border:1.5px solid var(--border);border-radius:16px;padding:8px 16px;font-size:12px;color:var(--muted);cursor:pointer;">&larr; Back to waiting</button>
+    <div id="team-content" style="width:100%;max-width:400px;margin:14px auto 0;padding:0 20px;"></div>
+  </div>
 </div>
 
 <div id="all-locked-overlay">
@@ -846,6 +881,141 @@ function setupGameListeners(gv){
   });
 
   gameRef.on('value',function(gs){onGameState(gs.val());});
+
+  // Team status — live from the moment a player joins, independent of
+  // whether they've ever opened the team screen themselves
+  gameRef.child('teams').on('value',function(s){
+    latestTeamsData=s.val()||{};
+    updateWaitingTeamStatus(latestTeamsData);
+    if(document.getElementById('team-screen').style.display==='flex') renderTeamScreen(latestTeamsData);
+  });
+}
+
+let latestTeamsData={};
+
+function myCurrentTeamId(teamsData){
+  var ids=Object.keys(teamsData||{});
+  for(var i=0;i<ids.length;i++){
+    var t=teamsData[ids[i]];
+    if(t.members && t.members[myPid]) return ids[i];
+  }
+  return null;
+}
+
+function updateWaitingTeamStatus(teamsData){
+  var el=document.getElementById('wteam-status');
+  if(!el) return;
+  var myTeamId=myCurrentTeamId(teamsData);
+  if(myTeamId){
+    var t=teamsData[myTeamId];
+    var n=Object.keys(t.members||{}).length;
+    el.textContent='Team: '+t.name+' ('+n+'/8)'+(t.captain===myPid?' — you\'re captain':'');
+  } else {
+    el.textContent='Playing solo — tap above to join or start a team';
+  }
+}
+
+function goTeams(){
+  document.getElementById('waiting-screen').style.display='none';
+  document.getElementById('team-screen').style.display='flex';
+  renderTeamScreen(latestTeamsData);
+}
+
+function backToWaiting(){
+  document.getElementById('team-screen').style.display='none';
+  document.getElementById('waiting-screen').style.display='flex';
+}
+
+function renderTeamScreen(teamsData){
+  var wrap=document.getElementById('team-content');
+  if(!wrap) return;
+  var myTeamId=myCurrentTeamId(teamsData);
+  var html='';
+
+  if(myTeamId){
+    var t=teamsData[myTeamId];
+    var memberIds=Object.keys(t.members||{});
+    var isCaptain=(t.captain===myPid);
+    html+='<div class="tm-card mine"><div class="tm-card-hdr">';
+    if(isCaptain){
+      html+='<input class="tm-rename-inp" id="teamRenameInp" value="'+t.name+'" onchange="renameTeam(\''+myTeamId+'\',this.value)">';
+    } else {
+      html+='<div class="tm-name">'+t.name+'</div>';
+    }
+    html+='<div class="tm-count">'+memberIds.length+'/8</div></div>';
+    memberIds.forEach(function(pid){
+      var name=pNames[pid]||pid;
+      html+='<div class="tm-member-row"><div class="tm-member-name">'+name+(pid===myPid?' (you)':'')+'</div>';
+      if(pid===t.captain) html+='<span class="tm-cap-badge">CAPTAIN</span>';
+      else if(isCaptain) html+='<button class="tm-make-cap" onclick="makeCaptain(\''+myTeamId+'\',\''+pid+'\')">Make Captain</button>';
+      html+='</div>';
+    });
+    if(memberIds.length<2) html+='<div style="font-size:11px;color:var(--dim);margin-top:8px;">Needs at least 2 players before kickoff</div>';
+    html+='<button class="tm-leave-btn" onclick="leaveTeam(\''+myTeamId+'\')">Leave Team</button></div>';
+  }
+
+  var otherIds=Object.keys(teamsData||{}).filter(function(id){ return id!==myTeamId; });
+  otherIds.forEach(function(id){
+    var t=teamsData[id];
+    var memberIds=Object.keys(t.members||{});
+    var full=memberIds.length>=8;
+    html+='<div class="tm-card"><div class="tm-card-hdr"><div class="tm-name">'+t.name+'</div><div class="tm-count">'+memberIds.length+'/8</div></div>'+
+      '<div style="font-size:12px;color:var(--dim);">'+memberIds.map(function(pid){return pNames[pid]||pid;}).join(', ')+'</div>'+
+      '<button class="tm-join-btn" '+((full||myTeamId)?'disabled':'')+' onclick="joinTeam(\''+id+'\')">'+(full?'Team Full':'Join Team')+'</button></div>';
+  });
+
+  if(!myTeamId){
+    html+='<div class="tm-create-wrap"><div style="font-family:Georgia,serif;color:var(--wine);margin-bottom:8px;">Start a new team</div>'+
+      '<input class="tm-create-inp" id="newTeamName" placeholder="Team name" maxlength="20">'+
+      '<button class="tm-create-btn" onclick="createTeam()">Create Team</button></div>';
+  }
+
+  wrap.innerHTML=html;
+}
+
+function createTeam(){
+  var inp=document.getElementById('newTeamName');
+  var name=inp?inp.value.trim():'';
+  if(!name){toast('Give your team a name',true);return;}
+  var teamId='t_'+Date.now()+'_'+Math.floor(Math.random()*1000);
+  var upd={};
+  upd['teams/'+teamId+'/name']=name;
+  upd['teams/'+teamId+'/captain']=myPid;
+  upd['teams/'+teamId+'/members/'+myPid]=true;
+  gameRef.update(upd);
+}
+
+function joinTeam(teamId){
+  var t=latestTeamsData[teamId];
+  if(!t) return;
+  var memberIds=Object.keys(t.members||{});
+  if(memberIds.length>=8){toast('That team is full',true);return;}
+  gameRef.child('teams/'+teamId+'/members/'+myPid).set(true);
+}
+
+function leaveTeam(teamId){
+  var t=latestTeamsData[teamId];
+  if(!t) return;
+  var remaining=Object.keys(t.members||{}).filter(function(pid){return pid!==myPid;});
+  gameRef.child('teams/'+teamId+'/members/'+myPid).remove();
+  if(remaining.length===0){
+    gameRef.child('teams/'+teamId).remove(); // last one out, team's gone
+  } else if(t.captain===myPid){
+    gameRef.child('teams/'+teamId+'/captain').set(remaining[0]); // auto-promote so the team's never captain-less
+  }
+}
+
+function makeCaptain(teamId,pid){
+  var t=latestTeamsData[teamId];
+  if(!t || t.captain!==myPid) return; // only the current captain may hand it off
+  gameRef.child('teams/'+teamId+'/captain').set(pid);
+}
+
+function renameTeam(teamId,newName){
+  newName=(newName||'').trim();
+  var t=latestTeamsData[teamId];
+  if(!newName || !t || t.captain!==myPid) return;
+  gameRef.child('teams/'+teamId+'/name').set(newName);
 }
 
 function connectAsExisting(code,name,existingPid,gv){
