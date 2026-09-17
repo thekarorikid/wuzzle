@@ -942,7 +942,7 @@ function renderTeamScreen(teamsData){
     } else {
       html+='<div class="tm-name">'+t.name+'</div>';
     }
-    html+='<div class="tm-count">'+memberIds.length+'/8</div></div>';
+    html+='</div>';
     memberIds.forEach(function(pid){
       var name=pNames[pid]||pid;
       html+='<div class="tm-member-row"><div class="tm-member-name">'+name+(pid===myPid?' (you)':'')+'</div>';
@@ -959,7 +959,7 @@ function renderTeamScreen(teamsData){
     var t=teamsData[id];
     var memberIds=Object.keys(t.members||{});
     var full=memberIds.length>=8;
-    html+='<div class="tm-card"><div class="tm-card-hdr"><div class="tm-name">'+t.name+'</div><div class="tm-count">'+memberIds.length+'/8</div></div>'+
+    html+='<div class="tm-card"><div class="tm-card-hdr"><div class="tm-name">'+t.name+'</div></div>'+
       '<div style="font-size:12px;color:var(--dim);">'+memberIds.map(function(pid){return pNames[pid]||pid;}).join(', ')+'</div>'+
       '<button class="tm-join-btn" '+((full||myTeamId)?'disabled':'')+' onclick="joinTeam(\''+id+'\')">'+(full?'Team Full':'Join Team')+'</button></div>';
   });
@@ -1138,10 +1138,13 @@ function startGameFromWaiting(){
   if(!gameRef)return;
   var pids=Object.keys(pNames);
   if(!pids.length){toast('Wait for at least one player!',true);return;}
-  var sa=document.getElementById('wstart-area');
-  if(sa){sa.style.display='none';}
-  gameRef.update({status:'playing',round:0,hostReady:true});
-  toast('Game started!');
+  gameRef.child('status').once('value',function(s){
+    if(s.val()==='final'){toast('This game has already finished',true);return;}
+    var sa=document.getElementById('wstart-area');
+    if(sa){sa.style.display='none';}
+    gameRef.update({status:'playing',round:0,hostReady:true});
+    toast('Game started!');
+  });
 }
 
 function shareGame(){
@@ -1260,7 +1263,14 @@ async function onGameState(gv){
   if(gv.status==='playing'){
     if(!gameStarted){
       gameStarted=true;
-      curRound=gv.round;answered=false;selVal=null;allLockedHandled=false;revealShownForRound=false;
+      curRound=gv.round;
+      // If this player already answered this round before reconnecting —
+      // a refresh, a dropped connection, a stray tap that reloaded the page
+      // — restore that instead of wiping it. Firebase never forgot it (it's
+      // still counted for "everyone's locked in"); the screen was the only
+      // thing forgetting, which is exactly what looked like a lost answer.
+      var myPriorAnswer=((gv.answers||{})[curRound]||{})[myPid];
+      answered=!!myPriorAnswer;selVal=myPriorAnswer||null;allLockedHandled=false;revealShownForRound=false;
       pScores=gv.scores||{};
       document.getElementById('waiting-screen').style.display='none';
       document.getElementById('game-screen').style.display='flex';
@@ -1299,7 +1309,14 @@ async function onGameState(gv){
     }
     await displayRoundResult(gv);
   } else if(gv.status==='final'){
-    if(!finalShown){finalShown=true;await sleep(400);renderMyResults(gv);}
+    if(!finalShown){
+      finalShown=true;
+      gameStarted=true;
+      document.getElementById('waiting-screen').style.display='none';
+      document.getElementById('team-screen').style.display='none';
+      document.getElementById('game-screen').style.display='flex';
+      await sleep(400);renderMyResults(gv);
+    }
   }
 }
 
@@ -1785,13 +1802,30 @@ function renderRound(gv){
   var cfmWrap=document.createElement('div');
   cfmWrap.style.cssText='padding:6px 14px 10px;';
   var cbtn=document.createElement('button');
-  cbtn.id='cbtn';cbtn.disabled=true;
+  cbtn.id='cbtn';
   cbtn.style.cssText="width:100%;background:var(--wine);border:none;border-radius:14px;padding:15px;color:#fff;font-family:Georgia,serif;font-size:15px;cursor:pointer;letter-spacing:2px;transition:all .2s;opacity:.35;";
-  cbtn.textContent='Lock In My Answer';
   cbtn.addEventListener('click',lockIn);
   cbtn.addEventListener('mouseenter',function(){if(!cbtn.disabled)cbtn.style.opacity='1';});
   cfmWrap.appendChild(cbtn);
   qPanel.appendChild(cfmWrap);
+
+  if(answered && selVal){
+    // Restoring an already-locked answer (reconnect mid-round) — reflect it
+    // visually instead of showing a blank slate with a live Firebase record
+    // underneath it that the screen doesn't agree with.
+    az.querySelectorAll('.opt-btn').forEach(function(b){
+      if(!b.classList.contains('sel')) b.classList.add('dim-opt');
+    });
+    var selBtn=az.querySelector('.opt-btn[data-val="'+selVal.replace(/"/g,'&quot;')+'"]');
+    if(selBtn) selBtn.classList.add('sel');
+    cbtn.disabled=true;
+    cbtn.textContent='✓ Locked in';
+    cbtn.style.background='var(--green)';
+    cbtn.style.opacity='1';
+  } else {
+    cbtn.disabled=true;
+    cbtn.textContent='Lock In My Answer';
+  }
 
   var origCbtn=cbtn;
   var obs=new MutationObserver(function(){
@@ -1896,6 +1930,16 @@ function shareMyResults(){
   }
 }
 
+function exitGame(){
+  // Browsers only allow a script to close a tab it opened itself — a tab
+  // the player navigated to directly (which is every real case here) can't
+  // be force-closed by the page. window.close() is attempted, but there's
+  // no reliable way to detect whether it worked, so the toast covers the
+  // far more common case where it silently does nothing.
+  window.close();
+  setTimeout(function(){ toast('You can close this tab now — thanks for playing!'); },300);
+}
+
 function renderFinal(gv){
   lastFinalGv=gv;
   var scr=document.getElementById('game-screen');
@@ -1934,6 +1978,10 @@ function renderFinal(gv){
       '<div style="display:flex;gap:10px;width:100%;max-width:360px;">'+
         '<button onclick="renderMyResults(lastFinalGv,false)" style="flex:1;background:transparent;border:1.5px solid var(--border);border-radius:12px;padding:12px;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.5px;cursor:pointer;">&larr; My Results</button>'+
         '<button onclick="shareMyResults()" style="flex:1;background:var(--wine);border:none;border-radius:12px;padding:12px;color:#fff;font-size:12px;font-weight:700;letter-spacing:.5px;cursor:pointer;">&#128228; Share My Score</button>'+
+      '</div>'+
+      '<div style="display:flex;gap:10px;width:100%;max-width:360px;margin-top:10px;">'+
+        '<button onclick="window.location.href=window.location.href.split(\'?\')[0]" style="flex:1;background:transparent;border:1.5px solid var(--wine);border-radius:12px;padding:12px;color:var(--wine);font-size:12px;font-weight:700;letter-spacing:.5px;cursor:pointer;">New Game</button>'+
+        '<button onclick="exitGame()" style="flex:1;background:transparent;border:1.5px solid var(--border);border-radius:12px;padding:12px;color:var(--dim);font-size:12px;font-weight:700;letter-spacing:.5px;cursor:pointer;">Exit</button>'+
       '</div>'+
     '</div>';
   
