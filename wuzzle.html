@@ -281,6 +281,11 @@ body { font-family: 'Lato', sans-serif; background: #241019; min-height: 100vh; 
 .opt-btn.sel .opt-num { background:var(--wine); color:#fff; }
 .opt-lbl { flex:1; font-size:15px; color:var(--text); font-weight:500; letter-spacing:.3px; }
 .opt-tck { font-size:20px; width:24px; text-align:center; flex-shrink:0; }
+.opt-team-tags { display:flex; flex-direction:column; align-items:flex-end; gap:3px; flex-shrink:0; max-width:90px; }
+.opt-team-tag { font-size:10px; font-weight:700; color:var(--blue); background:rgba(26,95,168,.1); padding:2px 7px; border-radius:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.opt-btn.consensus { border-color:var(--gold) !important; animation:consensusFlash 1s ease-in-out infinite; }
+@keyframes consensusFlash { 0%,100%{ box-shadow:0 0 0 rgba(212,160,16,0); } 50%{ box-shadow:0 0 16px rgba(212,160,16,.65); } }
+.team-lockin-note { text-align:center; font-size:12.5px; line-height:1.5; color:var(--muted); padding:14px; background:var(--bg3); border:1.5px dashed var(--border); border-radius:14px; }
 
 /* NEXT button */
 .next-btn {
@@ -902,6 +907,34 @@ function myCurrentTeamId(teamsData){
   return null;
 }
 
+// A team of players and a solo player are scored the same way — as one
+// "answering unit" with one id, one name, one score history. A team's id
+// is its teamId; a solo player's id is just their own pid. Every place in
+// the game that used to iterate "every player" now iterates these units
+// instead, so a mixed room of teams and solo players scores correctly
+// without the two needing separate code paths.
+function getAnsweringUnits(gv){
+  var teams=gv.teams||{};
+  var roster=gv.roster||gv.players||{};
+  var teamedPids={};
+  var units=[];
+  Object.keys(teams).forEach(function(tid){
+    var t=teams[tid];
+    var memberPids=Object.keys(t.members||{});
+    if(memberPids.length===0) return; // empty team (everyone left) — not a real unit
+    memberPids.forEach(function(pid){ teamedPids[pid]=true; });
+    units.push({id:tid,name:t.name,isTeam:true,memberPids:memberPids,captain:t.captain});
+  });
+  Object.keys(roster).forEach(function(pid){
+    if(!teamedPids[pid]) units.push({id:pid,name:roster[pid],isTeam:false,memberPids:[pid]});
+  });
+  return units;
+}
+
+function myAnsweringUnitId(gv){
+  return myCurrentTeamId(gv.teams||{}) || myPid;
+}
+
 function updateWaitingTeamStatus(teamsData){
   var el=document.getElementById('wteam-status');
   if(!el) return;
@@ -1269,7 +1302,7 @@ async function onGameState(gv){
       // — restore that instead of wiping it. Firebase never forgot it (it's
       // still counted for "everyone's locked in"); the screen was the only
       // thing forgetting, which is exactly what looked like a lost answer.
-      var myPriorAnswer=((gv.answers||{})[curRound]||{})[myPid];
+      var myPriorAnswer=((gv.answers||{})[curRound]||{})[myAnsweringUnitId(gv)];
       answered=!!myPriorAnswer;selVal=myPriorAnswer||null;allLockedHandled=false;revealShownForRound=false;
       pScores=gv.scores||{};
       document.getElementById('waiting-screen').style.display='none';
@@ -1332,14 +1365,12 @@ function checkAllLocked(gv){
   // the round number doesn't match closes that window.
   if(gv.round!==curRound) return;
   var ra=(gv.answers||{})[curRound]||{};
-  // Roster is the permanent "everyone who ever joined" list — gv.players
-  // only reflects who's connected at this exact instant, which shrinks the
-  // moment a phone backgrounds or a tab goes quiet. Checking against that
-  // ephemeral list was exactly what let the round auto-advance while three
-  // players hadn't answered yet: their tabs had briefly dropped out of
-  // gv.players, so "everyone" quietly meant "whoever's still here."
-  var pids=Object.keys(gv.roster||gv.players||{});
-  if(pids.length>0&&pids.every(pid=>ra[pid])){
+  // Waiting for every answering unit now, not every raw player — a team
+  // only counts once its captain has locked in a consensus answer, not
+  // once every member has merely picked something.
+  var units=getAnsweringUnits(gv);
+  var ids=units.map(function(u){ return u.id; });
+  if(ids.length>0&&ids.every(function(id){ return ra[id]; })){
     allLockedHandled=true;
     showAllLockedState();
     // Race to become the one client that runs the countdown and writes the
@@ -1384,10 +1415,11 @@ async function runReveal(gv){
   // never on this client's own local pScores — this client only won the
   // right to run the countdown, that says nothing about whether its local
   // copy of everyone's history happens to be fully up to date.
+  var units=getAnsweringUnits(gv);
   var ns={};
-  Object.keys(gv.roster||gv.players||{}).forEach(function(pid){
-    ns[pid]=scoreArr((gv.scores||{})[pid]).slice();
-    ns[pid][curRound]=(ra[pid]===cor);
+  units.forEach(function(u){
+    ns[u.id]=scoreArr((gv.scores||{})[u.id]).slice();
+    ns[u.id][curRound]=(ra[u.id]===cor);
   });
   pScores=ns;
 
@@ -1415,11 +1447,12 @@ async function displayRoundResult(gv){
 
   var cor=gData[ROUNDS[curRound].key].correct;
   var ra=(gv.answers||{})[curRound]||{};
-  var myAns=ra[myPid]||null;
+  var myUnitId=myAnsweringUnitId(gv);
+  var myAns=ra[myUnitId]||null;
   // Prefer the authoritative scores the countdown-winner already wrote;
   // only fall back to computing locally if they genuinely aren't there yet.
   if(gv.scores) pScores=gv.scores;
-  var correct = (pScores[myPid]!==undefined) ? !!pScores[myPid][curRound] : (myAns===cor);
+  var correct = (pScores[myUnitId]!==undefined) ? !!pScores[myUnitId][curRound] : (myAns===cor);
 
   var ro=document.getElementById('reveal-overlay');
   var ae=document.getElementById('rv-ans');
@@ -1578,33 +1611,36 @@ function scoreArr(sc){
 // brisk 1/3s cycle (everyone but you has locked in) — the "beating heart"
 // effect. Recomputed live every time Firebase data changes mid-round.
 function computePulseDuration(gv, round){
-  var playerMap=gv.roster||gv.players||{};
-  var total=Object.keys(playerMap).length||1;
+  var total=getAnsweringUnits(gv).length||1;
   var lockedCount=Object.keys((gv.answers||{})[round]||{}).length;
   var ratio=Math.min(1, lockedCount/total);
   return Math.max(1/3, 2 - ratio*(2 - 1/3));
 }
 
-// Status for one player's dot on one round: correct/wrong once that round
-// is scored; "locked" once they've locked in; "thinking" (pulsing) once
-// they've picked an option but not yet locked it in; "idle" (static, same
-// blue) if they haven't picked anything yet. Only ever computed for the
-// CURRENT round — past rounds are always correct/wrong, future rounds are
-// always blank, neither needs this.
-function roundDotStatus(gv, pid, round, sc){
+// Status for one answering unit's dot on one round: correct/wrong once
+// that round is scored; "locked" once its final answer is in (a team's
+// captain-confirmed consensus, or a solo player's own lock-in); "thinking"
+// (pulsing) once there's live activity but no final answer yet; "idle"
+// (static, same blue) otherwise. Only ever computed for the CURRENT round.
+function roundDotStatus(gv, unit, round, sc){
   if(sc[round]!==undefined) return sc[round]?'correct':'wrong';
-  if(((gv.answers||{})[round]||{})[pid]) return 'locked';
-  if(((gv.selecting||{})[round]||{})[pid]) return 'thinking';
+  if(((gv.answers||{})[round]||{})[unit.id]) return 'locked';
+  if(unit.isTeam){
+    var picks=((gv.teamPicks||{})[round]||{})[unit.id]||{};
+    if(Object.keys(picks).length>0) return 'thinking';
+  } else if(((gv.selecting||{})[round]||{})[unit.id]){
+    return 'thinking';
+  }
   return 'idle';
 }
 
-function buildRoundDots(gv, pid, sc){
+function buildRoundDots(gv, unit, sc){
   var dots='';
   for(var i=0;i<6;i++){
     if(i<curRound){
       dots+='<div class="sg-dot '+(sc[i]?'correct':'wrong')+'"></div>';
     } else if(i===curRound){
-      var status=roundDotStatus(gv,pid,i,sc);
+      var status=roundDotStatus(gv,unit,i,sc);
       var style = status==='thinking' ? (' style="--pulse-dur:'+computePulseDuration(gv,i)+'s"') : '';
       dots+='<div class="sg-dot '+status+'"'+style+'></div>';
     } else {
@@ -1615,13 +1651,21 @@ function buildRoundDots(gv, pid, sc){
 }
 
 function buildMyScoreChip(gv){
-  var sc=scoreArr((gv.scores||{})[myPid]||pScores[myPid]);
+  var myTeamId=myCurrentTeamId(gv.teams||{});
+  var unitId=myTeamId||myPid;
+  var sc=scoreArr((gv.scores||{})[unitId]||pScores[unitId]);
   var doneCount=sc.length, correctCount=sc.filter(Boolean).length;
   var tally=doneCount?correctCount+'/'+doneCount:'0/0';
-  var status=roundDotStatus(gv, myPid, curRound, sc);
+  var unit={id:unitId,isTeam:!!myTeamId,memberPids:myTeamId?Object.keys((gv.teams[myTeamId]||{}).members||{}):[myPid]};
+  var status=roundDotStatus(gv, unit, curRound, sc);
   var style = status==='thinking' ? (' style="--pulse-dur:'+computePulseDuration(gv,curRound)+'s"') : '';
-  var statusLabel={idle:'Choosing…',thinking:'Choosing…',locked:'Locked in',correct:'Correct!',wrong:'Next time!'}[status];
-  return '<div class="my-score-chip"><div><div class="msc-label">Your Score</div>'+
+  var statusLabel = myTeamId
+    ? {idle:'Choosing…',thinking:'Choosing…',locked:'Team locked in',correct:'Correct!',wrong:'Next time!'}[status]
+    : {idle:'Choosing…',thinking:'Choosing…',locked:'Locked in',correct:'Correct!',wrong:'Next time!'}[status];
+  var label = myTeamId
+    ? '<div class="msc-label" style="cursor:pointer;text-decoration:underline;" onclick="goTeams()">'+gv.teams[myTeamId].name+' &#9662;</div>'
+    : '<div class="msc-label">Your Score</div>';
+  return '<div class="my-score-chip"><div>'+label+
     '<div class="msc-val">'+tally+'</div></div>'+
     '<div style="display:flex;align-items:center;gap:8px;">'+
       '<div class="sg-dot '+status+'"'+style+'></div>'+
@@ -1630,12 +1674,12 @@ function buildMyScoreChip(gv){
 }
 
 function buildLeaderboard(gv){
-  var playerMap=gv.roster||gv.players||{};
-  var pids=Object.keys(playerMap);
+  var units=getAnsweringUnits(gv);
   var scores=gv.scores||{};
-  var rows=pids.map(function(pid){
-    var sc=scoreArr(scores[pid]);
-    return {pid:pid,name:playerMap[pid]||pid,correctCount:sc.filter(Boolean).length,doneCount:sc.length,dots:buildRoundDots(gv,pid,sc)};
+  var myUnitId=myAnsweringUnitId(gv);
+  var rows=units.map(function(u){
+    var sc=scoreArr(scores[u.id]);
+    return {id:u.id,name:u.name,isTeam:u.isTeam,memberCount:u.memberPids.length,correctCount:sc.filter(Boolean).length,doneCount:sc.length,dots:buildRoundDots(gv,u,sc)};
   });
   // Best performers on top — like golf, but higher is better here
   rows.sort(function(a,b){ return b.correctCount-a.correctCount; });
@@ -1650,9 +1694,11 @@ function buildLeaderboard(gv){
   });
   var html=rows.map(function(r){
     var isFirst = r.rank===1 && r.correctCount>0;
-    return '<div class="lb-row'+(r.pid===myPid?' me':'')+'">'+
+    var isMine = r.id===myUnitId;
+    var label = r.name+(r.isTeam?' <span style="font-size:10px;color:var(--dim);font-weight:400;">('+r.memberCount+')</span>':'');
+    return '<div class="lb-row'+(isMine?' me':'')+'">'+
       '<div class="lb-rank'+(isFirst?' first':'')+'">'+(isFirst?'★':r.rank)+'</div>'+
-      '<div class="lb-name">'+r.name+(r.pid===myPid?' (you)':'')+'</div>'+
+      '<div class="lb-name">'+label+(isMine?' (you)':'')+'</div>'+
       '<div class="lb-dots">'+r.dots+'</div>'+
       '<div class="lb-score">'+r.correctCount+'<small>/'+r.doneCount+'</small></div>'+
     '</div>';
@@ -1770,14 +1816,18 @@ function renderRound(gv){
   var az=document.createElement('div');
   az.className='answer-zone';
   az.id='answer-zone';
+  var myTeamId=myCurrentTeamId(gv.teams||{});
+  var myTeam=myTeamId?gv.teams[myTeamId]:null;
+  var isCaptain=myTeam?(myTeam.captain===myPid):false;
   d.opts.forEach(function(o,i){
     var btn=document.createElement('button');
     btn.className='opt-btn';
+    btn.id='optBtn'+i;
     btn.setAttribute('data-val',o);
     btn.innerHTML=
       '<div class="opt-num">'+(i+1)+'</div>'+
       '<div class="opt-lbl">'+o+'</div>'+
-      '<div class="opt-tck" id="tk'+i+'"></div>';
+      (myTeamId?'<div class="opt-team-tags" id="optTags'+i+'"></div>':'<div class="opt-tck" id="tk'+i+'"></div>');
     btn.addEventListener('click',function(e){
       if(answered)return;
       // Ripple
@@ -1786,53 +1836,121 @@ function renderRound(gv){
       rip.style.left=(e.clientX-rect.left-5)+'px';
       rip.style.top=(e.clientY-rect.top-5)+'px';
       btn.appendChild(rip);setTimeout(()=>rip.remove(),600);
-      selVal=o;
-      document.querySelectorAll('.opt-btn').forEach(b=>b.classList.remove('sel'));
-      btn.classList.add('sel');
-      document.getElementById('cbtn').disabled=false;
-      // Flag "picked something, not locked yet" for everyone's leaderboard —
-      // doesn't reveal which option, just that this player is now pulsing
-      if(gameRef) gameRef.child('selecting/'+curRound+'/'+myPid).set(true);
+      if(myTeamId){
+        // Team members can toggle back and forth to encourage discussion —
+        // tapping your already-selected option deselects it rather than
+        // locking anything in; only the captain can finalize the team's answer.
+        var wasSelected=btn.classList.contains('sel');
+        document.querySelectorAll('.opt-btn').forEach(b=>b.classList.remove('sel'));
+        if(wasSelected){
+          selVal=null;
+          gameRef.child('teamPicks/'+curRound+'/'+myTeamId+'/'+myPid).remove();
+        } else {
+          selVal=o;
+          btn.classList.add('sel');
+          gameRef.child('teamPicks/'+curRound+'/'+myTeamId+'/'+myPid).set(o);
+        }
+      } else {
+        selVal=o;
+        document.querySelectorAll('.opt-btn').forEach(b=>b.classList.remove('sel'));
+        btn.classList.add('sel');
+        document.getElementById('cbtn').disabled=false;
+        // Flag "picked something, not locked yet" for everyone's leaderboard —
+        // doesn't reveal which option, just that this player is now pulsing
+        if(gameRef) gameRef.child('selecting/'+curRound+'/'+myPid).set(true);
+      }
     });
     az.appendChild(btn);
   });
   qPanel.appendChild(az);
 
-  // Lock In button
+  // Lock In area — three distinct shapes: solo player, team captain, team member
   var cfmWrap=document.createElement('div');
   cfmWrap.style.cssText='padding:6px 14px 10px;';
-  var cbtn=document.createElement('button');
-  cbtn.id='cbtn';
-  cbtn.style.cssText="width:100%;background:var(--wine);border:none;border-radius:14px;padding:15px;color:#fff;font-family:Georgia,serif;font-size:15px;cursor:pointer;letter-spacing:2px;transition:all .2s;opacity:.35;";
-  cbtn.addEventListener('click',lockIn);
-  cbtn.addEventListener('mouseenter',function(){if(!cbtn.disabled)cbtn.style.opacity='1';});
+  var cbtn;
+  if(myTeamId && !isCaptain){
+    cbtn=document.createElement('div');
+    cbtn.id='cbtn';
+    cbtn.className='team-lockin-note';
+    cbtn.textContent='Discuss with your team — only your captain can lock in your answer.';
+  } else {
+    cbtn=document.createElement('button');
+    cbtn.id='cbtn';
+    cbtn.style.cssText="width:100%;background:var(--wine);border:none;border-radius:14px;padding:15px;color:#fff;font-family:Georgia,serif;font-size:15px;cursor:pointer;letter-spacing:2px;transition:all .2s;opacity:.35;";
+    if(myTeamId){
+      cbtn.disabled=true;
+      cbtn.textContent='Waiting for team consensus…';
+      cbtn.addEventListener('click',function(){ teamLockIn(myTeamId); });
+    } else {
+      cbtn.addEventListener('click',lockIn);
+      cbtn.addEventListener('mouseenter',function(){if(!cbtn.disabled)cbtn.style.opacity='1';});
+    }
+  }
   cfmWrap.appendChild(cbtn);
   qPanel.appendChild(cfmWrap);
 
   if(answered && selVal){
     // Restoring an already-locked answer (reconnect mid-round) — reflect it
     // visually instead of showing a blank slate with a live Firebase record
-    // underneath it that the screen doesn't agree with.
+    // underneath it that the screen doesn't agree with. Applies the same way
+    // whether it's my own solo answer or my team's confirmed consensus.
     az.querySelectorAll('.opt-btn').forEach(function(b){
       if(!b.classList.contains('sel')) b.classList.add('dim-opt');
     });
     var selBtn=az.querySelector('.opt-btn[data-val="'+selVal.replace(/"/g,'&quot;')+'"]');
     if(selBtn) selBtn.classList.add('sel');
-    cbtn.disabled=true;
-    cbtn.textContent='✓ Locked in';
-    cbtn.style.background='var(--green)';
-    cbtn.style.opacity='1';
-  } else {
+    if(myTeamId && !isCaptain){
+      cbtn.textContent='✓ Your team locked in: '+selVal;
+    } else {
+      cbtn.disabled=true;
+      cbtn.textContent='✓ Locked in';
+      cbtn.style.background='var(--green)';
+      cbtn.style.opacity='1';
+    }
+  } else if(!myTeamId){
     cbtn.disabled=true;
     cbtn.textContent='Lock In My Answer';
   }
 
-  var origCbtn=cbtn;
-  var obs=new MutationObserver(function(){
-    origCbtn.style.opacity=origCbtn.disabled?'.35':'1';
-    origCbtn.style.cursor=origCbtn.disabled?'not-allowed':'pointer';
-  });
-  obs.observe(cbtn,{attributes:true,attributeFilter:['disabled']});
+  if(cbtn.tagName==='BUTTON'){
+    var origCbtn=cbtn;
+    var obs=new MutationObserver(function(){
+      origCbtn.style.opacity=origCbtn.disabled?'.35':'1';
+      origCbtn.style.cursor=origCbtn.disabled?'not-allowed':'pointer';
+    });
+    obs.observe(cbtn,{attributes:true,attributeFilter:['disabled']});
+  }
+
+  // Live team-pick visibility: as teammates toggle their choices, show a
+  // small tag with their name on whichever option they currently have
+  // selected, and flash that option once every member agrees on it —
+  // the captain's lock button only lights up once that happens.
+  if(myTeamId && !(answered && selVal)){
+    gameRef.child('teamPicks/'+curRound+'/'+myTeamId).on('value',function(s){
+      var picks=s.val()||{};
+      var memberPids=Object.keys((gv.teams[myTeamId]||{}).members||{});
+      d.opts.forEach(function(o,i){
+        var tagWrap=document.getElementById('optTags'+i);
+        var optBtn=document.getElementById('optBtn'+i);
+        if(!tagWrap||!optBtn) return;
+        var namesHere=memberPids.filter(function(pid){ return picks[pid]===o; })
+                                 .map(function(pid){ return (pNames[pid]||pid).split(' ')[0]; });
+        tagWrap.innerHTML=namesHere.map(function(n){ return '<div class="opt-team-tag">'+n+'</div>'; }).join('');
+        var isConsensus=memberPids.length>0 && namesHere.length===memberPids.length;
+        optBtn.classList.toggle('consensus',isConsensus);
+      });
+      if(isCaptain){
+        var allPicked=memberPids.length>0 && memberPids.every(function(pid){ return picks[pid]; });
+        var vals=memberPids.map(function(pid){ return picks[pid]; });
+        var consensus=allPicked && vals.every(function(v){ return v===vals[0]; });
+        var liveCbtn=document.getElementById('cbtn');
+        if(liveCbtn && liveCbtn.tagName==='BUTTON' && !answered){
+          liveCbtn.disabled=!consensus;
+          liveCbtn.textContent=consensus?('Lock In: '+vals[0]):'Waiting for team consensus…';
+        }
+      }
+    });
+  }
 
   // ===== Panel 2: Leaderboard =====
   var sPanel=document.createElement('div');
@@ -1875,17 +1993,47 @@ function lockIn(){
   if(gameRef)gameRef.child('answers/'+curRound+'/'+myPid).set(selVal);
 }
 
+function teamLockIn(teamId){
+  if(answered) return;
+  gameRef.child('teamPicks/'+curRound+'/'+teamId).once('value',function(s){
+    var picks=s.val()||{};
+    gameRef.child('teams/'+teamId+'/members').once('value',function(ms){
+      var memberPids=Object.keys(ms.val()||{});
+      if(memberPids.length===0) return;
+      var vals=memberPids.map(function(pid){ return picks[pid]; });
+      // Re-verify consensus here rather than trusting the button's own
+      // enabled state — picks could in principle have changed in the
+      // instant between the button lighting up and being tapped.
+      if(vals.some(function(v){ return !v; })) return;
+      if(!vals.every(function(v){ return v===vals[0]; })) return;
+      answered=true;
+      selVal=vals[0];
+      var cb=document.getElementById('cbtn');
+      if(cb){cb.disabled=true;cb.textContent='✓ Locked in: '+selVal;cb.style.background='var(--green)';cb.style.opacity='1';}
+      document.querySelectorAll('.opt-btn').forEach(function(b){ if(!b.classList.contains('sel')) b.classList.add('dim-opt'); });
+      updateDialogue(
+        'Question '+(curRound+1)+': '+ROUNDS[curRound].label,
+        'Your team\'s answer is locked in — waiting for other teams...',
+        '',''
+      );
+      gameRef.child('answers/'+curRound+'/'+teamId).set(vals[0]);
+    });
+  });
+}
+
 let lastFinalGv=null; // kept so the "back to my results" link can rebuild it on demand
 
 function renderMyResults(gv, autoAdvance){
   if(autoAdvance===undefined) autoAdvance=false;
   lastFinalGv=gv;
   var scr=document.getElementById('game-screen');
-  var sc=scoreArr((gv.scores||{})[myPid]);
+  var myTeamId=myCurrentTeamId(gv.teams||{});
+  var unitId=myAnsweringUnitId(gv);
+  var sc=scoreArr((gv.scores||{})[unitId]);
   var correctCount=sc.filter(Boolean).length;
   var rows='';
   ROUNDS.forEach(function(r,i){
-    var given=((gv.answers||{})[i]||{})[myPid]||'—';
+    var given=((gv.answers||{})[i]||{})[unitId]||'—';
     var correct=gData?gData[r.key].correct:'';
     var wasCorrect=!!sc[i];
     rows+='<div style="display:grid;grid-template-columns:80px 1fr 1fr;border-bottom:1px solid var(--bg3);">'+
@@ -1894,16 +2042,18 @@ function renderMyResults(gv, autoAdvance){
       '<div style="padding:9px 10px;font-size:13px;font-weight:700;color:var(--green);">'+correct+'</div>'+
     '</div>';
   });
+  var pickLabel=myTeamId?'Team Pick':'Your Pick';
+  var titleLabel=myTeamId?(gv.teams[myTeamId].name.toUpperCase()+"'S RESULTS"):'YOUR RESULTS';
   scr.innerHTML=
     '<div style="background:var(--wine);padding:14px;text-align:center;">'+
-      '<div style="font-family:Georgia,serif;font-size:20px;color:#f5c842;letter-spacing:4px;">YOUR RESULTS</div>'+
+      '<div style="font-family:Georgia,serif;font-size:20px;color:#f5c842;letter-spacing:4px;">'+titleLabel+'</div>'+
     '</div>'+
     '<div class="fin-scr">'+
       '<div class="fin-ttl" style="margin-top:6px;">'+correctCount+'<span style="font-size:16px;color:var(--dim);"> / 6 correct</span></div>'+
       '<div style="width:100%;max-width:360px;background:#fff;border:1.5px solid var(--border);border-radius:16px;overflow:hidden;margin:16px 0 20px;box-shadow:0 2px 12px rgba(0,0,0,.07);">'+
         '<div style="display:grid;grid-template-columns:80px 1fr 1fr;background:var(--wine);">'+
           '<div style="padding:7px 10px;font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.7);text-transform:uppercase;font-weight:700;"></div>'+
-          '<div style="padding:7px 10px;font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.7);text-transform:uppercase;font-weight:700;">Your Pick</div>'+
+          '<div style="padding:7px 10px;font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.7);text-transform:uppercase;font-weight:700;">'+pickLabel+'</div>'+
           '<div style="padding:7px 10px;font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.7);text-transform:uppercase;font-weight:700;">Correct</div>'+
         '</div>'+
         rows+
@@ -1915,7 +2065,8 @@ function renderMyResults(gv, autoAdvance){
 }
 
 function shareMyResults(){
-  var sc=scoreArr(pScores[myPid]);
+  var unitId=myAnsweringUnitId(lastFinalGv||{});
+  var sc=scoreArr(pScores[unitId]);
   var correctCount=sc.filter(Boolean).length;
   var text='I scored '+correctCount+'/6 in Wuzzle — The Wine Puzzle! 🍷 Can you beat me?';
   var url=window.location.href.split('?')[0];
@@ -1943,9 +2094,10 @@ function exitGame(){
 function renderFinal(gv){
   lastFinalGv=gv;
   var scr=document.getElementById('game-screen');
-  var sc=gv.scores||{},pl=gv.roster||gv.players||{};
-  var tots=Object.keys(pl).map(function(pid){
-    return {pid:pid,name:pl[pid],pts:scoreArr(sc[pid]).filter(Boolean).length,me:pid===myPid};
+  var sc=gv.scores||{};
+  var myUnitId=myAnsweringUnitId(gv);
+  var tots=getAnsweringUnits(gv).map(function(u){
+    return {id:u.id,name:u.name,isTeam:u.isTeam,memberCount:u.memberPids.length,pts:scoreArr(sc[u.id]).filter(Boolean).length,me:u.id===myUnitId};
   }).sort(function(a,b){return b.pts-a.pts;});
   var me=tots.find(function(p){return p.me;})||{pts:0};
   var win=tots[0];
@@ -1956,9 +2108,10 @@ function renderFinal(gv){
   var lbRows=tots.map(function(p,i){
     var nameColor=p.me?'var(--wine)':'var(--muted)';
     var nameWeight=p.me?'700':'400';
+    var label=p.name+(p.isTeam?' <span style="font-size:11px;color:var(--dim);font-weight:400;">('+p.memberCount+')</span>':'');
     return '<div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--bg3);">'+
       '<div style="width:28px;text-align:center;font-size:'+(i===0?'18':'13')+'px;color:'+(i===0?'var(--gold)':'var(--dim)')+';">'+(i===0?'★':(i+1))+'</div>'+
-      '<div style="flex:1;font-size:14px;color:'+nameColor+';font-weight:'+nameWeight+';">'+p.name+(p.me?' (you)':'')+'</div>'+
+      '<div style="flex:1;font-size:14px;color:'+nameColor+';font-weight:'+nameWeight+';">'+label+(p.me?' (you)':'')+'</div>'+
       '<div style="font-family:Georgia,serif;font-size:20px;color:var(--text);">'+p.pts+'<span style="font-size:11px;color:var(--dim);">/6</span></div>'+
     '</div>';
   }).join('');
