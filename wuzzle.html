@@ -144,8 +144,14 @@ body { font-family: 'Lato', sans-serif; background: #241019; min-height: 100vh; 
 .w-ps   { margin-top:28px; display:flex; flex-wrap:wrap; gap:8px; justify-content:center; max-width:320px; }
 
 #team-screen {
-  display:none; min-height:100vh; flex-direction:column; align-items:center;
+  /* An overlay, not a page: it opens over whichever screen you're on (waiting
+     room or mid-game) and closing it puts you straight back where you were. */
+  display:none; flex-direction:column; align-items:center;
+  position:fixed; top:0; bottom:0; left:50%; transform:translateX(-50%);
+  width:100%; max-width:480px; z-index:300;
+  overflow-y:auto; -webkit-overflow-scrolling:touch;
   padding:40px 0 60px; text-align:center; background:linear-gradient(160deg,#fdf0e4 0%,#f5d8c0 60%,#eddabf 100%);
+  box-shadow:0 0 60px rgba(0,0,0,.35);
 }
 .tm-card { background:#fff; border:1.5px solid var(--border); border-radius:16px; padding:16px; margin-bottom:14px; text-align:left; box-shadow:0 2px 10px rgba(0,0,0,.05); }
 .tm-card.mine { border-color:var(--wine); background:#fdeef2; }
@@ -425,6 +431,28 @@ body { font-family: 'Lato', sans-serif; background: #241019; min-height: 100vh; 
 .lb-score small{ font-size:11px; color:var(--dim); font-family:'Lato',sans-serif; }
 #ver-tag { position:fixed; bottom:1px; left:6px; z-index:50; font:9px/11px Lato,sans-serif; letter-spacing:.5px; color:var(--dim); opacity:.5; cursor:pointer; padding:2px 4px; }
 #diag-panel { display:none; position:fixed; left:8px; right:8px; bottom:22px; max-height:60vh; overflow:auto; z-index:9999; background:#241019; color:#f4d9c8; font:11px/1.55 ui-monospace,Menlo,Consolas,monospace; padding:12px 14px; border-radius:12px; white-space:pre-wrap; word-break:break-word; box-shadow:0 8px 30px rgba(0,0,0,.4); }
+/* ── Build d: team colours, waiting-room team columns, team overlay, team hint ── */
+#wname{ cursor:pointer; }
+#wname .w-edit{ font-size:12px; color:var(--dim); margin-left:3px; }
+.w-ps.w-ps-teams{ max-width:380px; align-items:stretch; }
+.w-team{ flex:1 1 150px; min-width:140px; max-width:182px; background:rgba(255,255,255,.55); border:1.5px solid var(--border); border-top:5px solid var(--border); border-radius:14px; padding:10px 8px 12px; display:flex; flex-direction:column; align-items:center; gap:6px; }
+.w-team-name{ font-family:Georgia,serif; font-size:15px; font-weight:700; color:var(--wine); margin-bottom:2px; word-break:break-word; }
+.w-team-solo .w-team-name{ color:var(--dim); font-size:11px; font-family:'Lato',sans-serif; letter-spacing:1px; text-transform:uppercase; }
+.p-chip.in-team{ border-width:2.5px; padding:4px 11px; background:#fff; }
+.p-cap{ font-size:10px; color:var(--gold); }
+.tm-swatch{ display:inline-block; width:12px; height:12px; border-radius:50%; margin-right:8px; vertical-align:middle; flex-shrink:0; }
+.tm-lbl{ font-size:10px; letter-spacing:2px; color:var(--gold); text-transform:uppercase; font-weight:700; margin-bottom:8px; }
+.tm-inline{ display:flex; gap:8px; align-items:center; }
+.tm-inline input{ flex:1; min-width:0; width:auto; margin:0; }
+.tm-save-btn{ background:var(--wine); border:none; border-radius:10px; padding:10px 14px; color:#fff; font-size:12px; font-weight:700; cursor:pointer; flex-shrink:0; }
+.tm-remove{ font-size:10px; background:transparent; border:1px solid var(--red); border-radius:8px; padding:3px 8px; color:var(--red); cursor:pointer; }
+.tm-note{ font-size:11px; color:var(--dim); margin-top:8px; line-height:1.5; }
+.my-score-chip{ cursor:pointer; }
+.msc-link{ cursor:pointer; text-decoration:underline; }
+.gd-hint{ font-family:'Lato',sans-serif; font-size:12px; color:var(--dim); font-style:italic; }
+.team-hint{ margin:10px 14px 0; padding:11px 14px; text-align:center; font-size:12.5px; line-height:1.5; color:var(--muted); background:var(--bg3); border:1.5px dashed var(--border); border-radius:14px; }
+.team-hint.agree{ border-style:solid; border-color:var(--gold); background:#fff6df; color:var(--gold2); font-weight:700; }
+.team-hint.done{ border-style:solid; border-color:var(--green); background:#edf7f1; color:var(--green); font-weight:700; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
@@ -544,7 +572,7 @@ body { font-family: 'Lato', sans-serif; background: #241019; min-height: 100vh; 
   <div id="waiting-screen">
     <div class="w-icon">&#x1F377;</div>
     <div class="w-logo">WUZZLE</div>
-    <div class="w-name" id="wname"></div>
+    <div class="w-name" id="wname" onclick="goTeams()" title="Tap to change your name or team"></div>
     <div class="w-stat" id="wstat">Waiting for the game to start...</div>
     <div class="w-ps" id="wps"></div>
     <div id="wshare-wrap" style="margin-top:18px;">
@@ -558,7 +586,6 @@ body { font-family: 'Lato', sans-serif; background: #241019; min-height: 100vh; 
         style="display:flex;align-items:center;gap:8px;background:var(--wine);border:none;border-radius:20px;padding:10px 20px;cursor:pointer;font-family:Lato,sans-serif;font-size:13px;font-weight:700;color:#fff;margin:0 auto;width:auto;">
         &#x1F465; Go Teams!
       </button>
-      <div id="wteam-status" style="font-size:11px;color:var(--dim);margin-top:6px;letter-spacing:.5px;"></div>
     </div>
     <div id="wver-warn" style="display:none;margin:14px 20px 0;max-width:320px;background:#fff4e0;border:1.5px solid var(--gold);border-radius:12px;padding:10px 14px;font-size:12.5px;line-height:1.5;color:#7a4a00;text-align:left;"></div>
     <div id="wstart-area" style="margin-top:20px;width:100%;max-width:320px;display:none;">
@@ -575,7 +602,7 @@ body { font-family: 'Lato', sans-serif; background: #241019; min-height: 100vh; 
   <div id="team-screen">
     <div class="w-icon">&#x1F465;</div>
     <div class="w-logo" style="font-size:30px;">TEAMS</div>
-    <button onclick="backToWaiting()" style="margin:10px auto 4px;display:block;background:transparent;border:1.5px solid var(--border);border-radius:16px;padding:8px 16px;font-size:12px;color:var(--muted);cursor:pointer;">&larr; Back to waiting</button>
+    <button id="team-back-btn" onclick="closeTeams()" style="margin:10px auto 4px;display:block;background:transparent;border:1.5px solid var(--border);border-radius:16px;padding:8px 16px;font-size:12px;color:var(--muted);cursor:pointer;">&larr; Back</button>
     <div id="team-content" style="width:100%;max-width:400px;margin:14px auto 0;padding:0 20px;"></div>
   </div>
 </div>
@@ -867,7 +894,7 @@ function showJoinPrompt(title,message,confirmLabel,onConfirm,cancelLabel,onCance
 function setupGameListeners(gv){
   document.getElementById('join-screen').style.display='none';
   document.getElementById('waiting-screen').style.display='flex';
-  document.getElementById('wname').textContent="You're in as "+myName;
+  setMyNameUI();
 
   // Write to persistent roster (never auto-removed) AND lobby players node
   gameRef.child('versions/'+myPid).set(APP_VERSION);
@@ -888,11 +915,9 @@ function setupGameListeners(gv){
   // Watch roster (persistent) for scoreboard, players (connected) for lobby count
   gameRef.child('roster').on('value',function(rs){
     pNames=rs.val()||pNames;
-    // Update waiting screen player chips
-    var ws=document.getElementById('wps');
-    if(ws)ws.innerHTML=Object.values(pNames).map(function(n){
-      return '<div class="p-chip"><div class="p-dot"></div>'+n+'</div>';
-    }).join('');
+    // Redraw the waiting-room players (sorted into teams once teams exist)
+    renderWaitingPlayers();
+    if(document.getElementById('team-screen').style.display==='flex') renderTeamScreen(latestTeamsData);
     // Refresh the leaderboard/score chip if we're already in-game
     if(document.getElementById('leaderboard-wrap')){
       gameRef.once('value',function(s2){var g=s2.val();if(g)updateScorePanels(g);});
@@ -905,7 +930,7 @@ function setupGameListeners(gv){
   // whether they've ever opened the team screen themselves
   gameRef.child('teams').on('value',function(s){
     latestTeamsData=s.val()||{};
-    updateWaitingTeamStatus(latestTeamsData);
+    renderWaitingPlayers();
     if(document.getElementById('team-screen').style.display==='flex') renderTeamScreen(latestTeamsData);
   });
 }
@@ -949,107 +974,248 @@ function myAnsweringUnitId(gv){
   return myCurrentTeamId(gv.teams||{}) || myPid;
 }
 
-function updateWaitingTeamStatus(teamsData){
-  var el=document.getElementById('wteam-status');
-  if(!el) return;
-  var myTeamId=myCurrentTeamId(teamsData);
-  if(myTeamId){
-    var t=teamsData[myTeamId];
-    var n=Object.keys(t.members||{}).length;
-    el.textContent='Team: '+t.name+' ('+n+'/8)'+(t.captain===myPid?' — you\'re captain':'');
-  } else {
-    el.textContent='Playing solo — tap above to join or start a team';
+/* ── Team colours + safe text ── */
+const TEAM_COLORS=['#1a5fa8','#2d7a4f','#c8860a','#7a3fa0','#c2410c','#0f8b8d','#b0306a','#5c6b23'];
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+// A team's colour is stamped on it when it's created, so it never changes
+// under anyone. Teams made before colours existed fall back to a colour
+// worked out from their position, which every device agrees on.
+function teamColor(teamsData,tid){
+  var t=(teamsData||{})[tid]||{};
+  if(t.color) return t.color;
+  var ids=Object.keys(teamsData||{}).sort();
+  var i=ids.indexOf(tid);
+  return TEAM_COLORS[(i<0?0:i)%TEAM_COLORS.length];
+}
+function pickTeamColor(){
+  var used={};
+  Object.keys(latestTeamsData||{}).forEach(function(id){ used[teamColor(latestTeamsData,id)]=true; });
+  for(var i=0;i<TEAM_COLORS.length;i++){ if(!used[TEAM_COLORS[i]]) return TEAM_COLORS[i]; }
+  return TEAM_COLORS[Object.keys(latestTeamsData||{}).length%TEAM_COLORS.length];
+}
+
+// Waiting-room players. With no teams yet: plain chips. Once teams exist:
+// one column per team (team name on top, its players underneath, each chip
+// outlined in the team colour), plus a column for anyone not in a team.
+function renderWaitingPlayers(){
+  var ws=document.getElementById('wps');
+  if(!ws) return;
+  var teams=latestTeamsData||{};
+  var names=pNames||{};
+  var tids=Object.keys(teams).filter(function(id){ return Object.keys(teams[id].members||{}).length>0; }).sort();
+  function chip(pid,color,isCap){
+    return '<div class="p-chip'+(color?' in-team':'')+'"'+(color?' style="border-color:'+color+'"':'')+'><div class="p-dot"></div>'+esc(names[pid]||pid)+(isCap?' <span class="p-cap" title="Captain">&#9733;</span>':'')+'</div>';
   }
+  if(!tids.length){
+    ws.className='w-ps';
+    ws.innerHTML=Object.keys(names).map(function(pid){ return chip(pid,null,false); }).join('');
+    return;
+  }
+  ws.className='w-ps w-ps-teams';
+  var teamed={}, html='';
+  tids.forEach(function(id){
+    var t=teams[id], col=teamColor(teams,id);
+    var mids=Object.keys(t.members||{});
+    mids.forEach(function(pid){ teamed[pid]=true; });
+    html+='<div class="w-team" style="border-top-color:'+col+'"><div class="w-team-name" style="color:'+col+'">'+esc(t.name)+'</div>'+
+      mids.map(function(pid){ return chip(pid,col,pid===t.captain); }).join('')+'</div>';
+  });
+  var solo=Object.keys(names).filter(function(pid){ return !teamed[pid]; });
+  if(solo.length){
+    html+='<div class="w-team w-team-solo"><div class="w-team-name">Not in a team yet</div>'+
+      solo.map(function(pid){ return chip(pid,null,false); }).join('')+'</div>';
+  }
+  ws.innerHTML=html;
 }
 
+function setMyNameUI(){
+  var el=document.getElementById('wname');
+  if(el) el.innerHTML="You're in as "+esc(myName)+' <span class="w-edit">&#9998;</span>';
+}
+
+// The team screen is an overlay on whatever the player is looking at — the
+// waiting room or a game in progress — so it works at any time, including
+// for someone who joined late. Tapping the score panel in-game opens it.
 function goTeams(){
-  document.getElementById('waiting-screen').style.display='none';
-  document.getElementById('team-screen').style.display='flex';
-  renderTeamScreen(latestTeamsData);
+  var ts=document.getElementById('team-screen');
+  if(!ts||!gameRef) return;
+  ts.style.display='flex';
+  ts.scrollTop=0;
+  var gs=document.getElementById('game-screen');
+  var inGame=!!gs && getComputedStyle(gs).display!=='none';
+  var bb=document.getElementById('team-back-btn');
+  if(bb) bb.innerHTML=inGame?'&larr; Back to game':'&larr; Back to waiting room';
+  renderTeamScreen(latestTeamsData,true);
 }
 
-function backToWaiting(){
-  document.getElementById('team-screen').style.display='none';
-  document.getElementById('waiting-screen').style.display='flex';
+function closeTeams(){
+  var ts=document.getElementById('team-screen');
+  if(ts) ts.style.display='none';
+  // The game screen kept updating underneath; make sure it's showing the
+  // panel it should now that it's visible again.
+  if(document.getElementById('swipeTrack')) swipeGoTo(swipeIdx);
 }
 
-function renderTeamScreen(teamsData){
+function renderTeamScreen(teamsData,force){
   var wrap=document.getElementById('team-content');
   if(!wrap) return;
+  // Don't wipe out a name someone is halfway through typing
+  var ae=document.activeElement;
+  if(!force && ae && ae.tagName==='INPUT' && wrap.contains(ae)) return;
+  teamsData=teamsData||{};
   var myTeamId=myCurrentTeamId(teamsData);
   var html='';
 
+  // Your name
+  html+='<div class="tm-card"><div class="tm-lbl">Your name</div><div class="tm-inline">'+
+    '<input class="tm-create-inp" id="myNameInp" maxlength="16" value="'+esc(myName)+'" autocomplete="off">'+
+    '<button class="tm-save-btn" data-act="rename-me">Save</button></div></div>';
+  if(!myTeamId) html+='<div class="tm-note" style="margin:-4px 0 14px;">You are playing solo. Join a team below, or start your own &mdash; even part-way through a game.</div>';
+
+  // My team
+  var myTeamName='';
   if(myTeamId){
-    var t=teamsData[myTeamId];
+    var t=teamsData[myTeamId], col=teamColor(teamsData,myTeamId);
+    myTeamName=t.name;
     var memberIds=Object.keys(t.members||{});
     var isCaptain=(t.captain===myPid);
-    html+='<div class="tm-card mine"><div class="tm-card-hdr">';
+    html+='<div class="tm-card mine" style="border-color:'+col+'">';
     if(isCaptain){
-      html+='<input class="tm-rename-inp" id="teamRenameInp" value="'+t.name+'" onchange="renameTeam(\''+myTeamId+'\',this.value)">';
+      html+='<div class="tm-lbl">Your team</div><div class="tm-inline" style="margin-bottom:8px;"><span class="tm-swatch" style="background:'+col+'"></span>'+
+        '<input class="tm-rename-inp" id="teamRenameInp" data-team="'+esc(myTeamId)+'" maxlength="20" value="'+esc(t.name)+'" style="width:auto;">'+
+        '<button class="tm-save-btn" data-act="rename-team" data-team="'+esc(myTeamId)+'">Save</button></div>';
     } else {
-      html+='<div class="tm-name">'+t.name+'</div>';
+      html+='<div class="tm-lbl">Your team</div><div class="tm-card-hdr"><div class="tm-name"><span class="tm-swatch" style="background:'+col+'"></span>'+esc(t.name)+'</div></div>';
     }
-    html+='</div>';
     memberIds.forEach(function(pid){
       var name=pNames[pid]||pid;
-      html+='<div class="tm-member-row"><div class="tm-member-name">'+name+(pid===myPid?' (you)':'')+'</div>';
+      html+='<div class="tm-member-row"><div class="tm-member-name">'+esc(name)+(pid===myPid?' (you)':'')+'</div>';
       if(pid===t.captain) html+='<span class="tm-cap-badge">CAPTAIN</span>';
-      else if(isCaptain) html+='<button class="tm-make-cap" onclick="makeCaptain(\''+myTeamId+'\',\''+pid+'\')">Make Captain</button>';
+      else if(isCaptain){
+        html+='<button class="tm-make-cap" data-act="captain" data-team="'+esc(myTeamId)+'" data-pid="'+esc(pid)+'">Make Captain</button>'+
+              '<button class="tm-remove" data-act="remove" data-team="'+esc(myTeamId)+'" data-pid="'+esc(pid)+'">Remove</button>';
+      }
       html+='</div>';
     });
-    if(memberIds.length<2) html+='<div style="font-size:11px;color:var(--dim);margin-top:8px;">Needs at least 2 players before kickoff</div>';
-    html+='<button class="tm-leave-btn" onclick="leaveTeam(\''+myTeamId+'\')">Leave Team</button></div>';
+    if(memberIds.length<2) html+='<div class="tm-note">Needs at least 2 players before kickoff</div>';
+    html+='<button class="tm-leave-btn" data-act="leave" data-team="'+esc(myTeamId)+'">Leave Team</button></div>';
   }
 
-  var otherIds=Object.keys(teamsData||{}).filter(function(id){ return id!==myTeamId; });
-  otherIds.forEach(function(id){
+  // Other teams — joinable, and switchable-to if you're already in one
+  Object.keys(teamsData).sort().filter(function(id){ return id!==myTeamId; }).forEach(function(id){
     var t=teamsData[id];
     var memberIds=Object.keys(t.members||{});
-    var full=memberIds.length>=8;
-    html+='<div class="tm-card"><div class="tm-card-hdr"><div class="tm-name">'+t.name+'</div></div>'+
-      '<div style="font-size:12px;color:var(--dim);">'+memberIds.map(function(pid){return pNames[pid]||pid;}).join(', ')+'</div>'+
-      '<button class="tm-join-btn" '+((full||myTeamId)?'disabled':'')+' onclick="joinTeam(\''+id+'\')">'+(full?'Team Full':'Join Team')+'</button></div>';
+    if(!memberIds.length) return;
+    var full=memberIds.length>=MAX_TEAM_SIZE;
+    var col=teamColor(teamsData,id);
+    html+='<div class="tm-card" style="border-top:4px solid '+col+'"><div class="tm-card-hdr"><div class="tm-name">'+esc(t.name)+'</div><div class="tm-count">'+memberIds.length+'/'+MAX_TEAM_SIZE+'</div></div>'+
+      '<div style="font-size:12px;color:var(--dim);">'+memberIds.map(function(pid){return esc(pNames[pid]||pid);}).join(', ')+'</div>'+
+      '<button class="tm-join-btn" '+(full?'disabled':'')+' data-act="join" data-team="'+esc(id)+'">'+(full?'Team Full':(myTeamId?'Switch to this team':'Join Team'))+'</button></div>';
   });
 
-  if(!myTeamId){
-    html+='<div class="tm-create-wrap"><div style="font-family:Georgia,serif;color:var(--wine);margin-bottom:8px;">Start a new team</div>'+
-      '<input class="tm-create-inp" id="newTeamName" placeholder="Team name" maxlength="20">'+
-      '<button class="tm-create-btn" onclick="createTeam()">Create Team</button></div>';
-  }
+  // Start a new team (works whether or not you're already in one)
+  html+='<div class="tm-create-wrap"><div style="font-family:Georgia,serif;color:var(--wine);margin-bottom:8px;">Start a new team</div>'+
+    '<input class="tm-create-inp" id="newTeamName" placeholder="Team name" maxlength="20" autocomplete="off">'+
+    '<button class="tm-create-btn" data-act="create">Create Team</button>'+
+    (myTeamId?'<div class="tm-note">You will move out of '+esc(myTeamName)+' into the new team.</div>':'')+'</div>';
 
   wrap.innerHTML=html;
 }
 
+// One listener for every button on the team screen (they're redrawn often,
+// so nothing is wired to the buttons themselves).
+function initTeamScreenEvents(){
+  var wrap=document.getElementById('team-content');
+  if(!wrap) return;
+  wrap.addEventListener('click',function(e){
+    var b=e.target.closest?e.target.closest('[data-act]'):null;
+    if(!b||b.disabled) return;
+    var act=b.getAttribute('data-act'), tid=b.getAttribute('data-team'), pid=b.getAttribute('data-pid');
+    if(act==='rename-me') renamePlayer();
+    else if(act==='rename-team'){ var ri=document.getElementById('teamRenameInp'); renameTeam(tid,ri?ri.value:''); }
+    else if(act==='captain') makeCaptain(tid,pid);
+    else if(act==='remove') removeMember(tid,pid);
+    else if(act==='leave') leaveTeam(tid);
+    else if(act==='join') joinTeam(tid);
+    else if(act==='create') createTeam();
+  });
+  wrap.addEventListener('keydown',function(e){
+    if(e.key!=='Enter') return;
+    var id=e.target&&e.target.id;
+    if(id==='myNameInp') renamePlayer();
+    else if(id==='teamRenameInp') renameTeam(e.target.getAttribute('data-team'),e.target.value);
+    else if(id==='newTeamName') createTeam();
+  });
+}
+
+function blurActive(){ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); }
+
+function renamePlayer(){
+  var inp=document.getElementById('myNameInp');
+  var nn=(inp?inp.value:'').replace(/\s+/g,' ').trim();
+  if(!nn){toast('Type a name first',true);return;}
+  if(nn===myName){toast('That is already your name');return;}
+  var clash=Object.keys(pNames||{}).some(function(pid){ return pid!==myPid && normName(pNames[pid])===normName(nn); });
+  if(clash){toast('Someone else already has that name',true);return;}
+  myName=nn;
+  try{ sessionStorage.setItem('wuzzle_name',nn); }catch(e){}
+  var upd={};
+  upd['roster/'+myPid]=nn;
+  upd['players/'+myPid]=nn;
+  gameRef.update(upd);
+  setMyNameUI();
+  blurActive();
+  toast('Name changed to '+nn);
+}
+
+// Everything needed to take me out of a team, as paths for one atomic
+// update: the last person out removes the team, and if the captain leaves
+// the captaincy passes on so a team is never left without one.
+function leaveUpdates(teamId,upd){
+  var t=latestTeamsData[teamId];
+  if(!t) return;
+  var remaining=Object.keys(t.members||{}).filter(function(pid){return pid!==myPid;});
+  if(remaining.length===0){
+    upd['teams/'+teamId]=null;
+  } else {
+    upd['teams/'+teamId+'/members/'+myPid]=null;
+    if(t.captain===myPid) upd['teams/'+teamId+'/captain']=remaining[0];
+  }
+}
+
 function createTeam(){
   var inp=document.getElementById('newTeamName');
-  var name=inp?inp.value.trim():'';
+  var name=(inp?inp.value:'').trim();
   if(!name){toast('Give your team a name',true);return;}
   var teamId='t_'+Date.now()+'_'+Math.floor(Math.random()*1000);
   var upd={};
+  var oldTid=myCurrentTeamId(latestTeamsData);
+  if(oldTid) leaveUpdates(oldTid,upd);
   upd['teams/'+teamId+'/name']=name;
   upd['teams/'+teamId+'/captain']=myPid;
+  upd['teams/'+teamId+'/color']=pickTeamColor();
   upd['teams/'+teamId+'/members/'+myPid]=true;
   gameRef.update(upd);
+  blurActive();
 }
 
 function joinTeam(teamId){
   var t=latestTeamsData[teamId];
   if(!t) return;
-  var memberIds=Object.keys(t.members||{});
-  if(memberIds.length>=8){toast('That team is full',true);return;}
-  gameRef.child('teams/'+teamId+'/members/'+myPid).set(true);
+  var oldTid=myCurrentTeamId(latestTeamsData);
+  if(oldTid===teamId) return;
+  if(Object.keys(t.members||{}).length>=MAX_TEAM_SIZE){toast('That team is full',true);return;}
+  var upd={};
+  if(oldTid) leaveUpdates(oldTid,upd); // switching teams is one atomic move
+  upd['teams/'+teamId+'/members/'+myPid]=true;
+  gameRef.update(upd);
 }
 
 function leaveTeam(teamId){
-  var t=latestTeamsData[teamId];
-  if(!t) return;
-  var remaining=Object.keys(t.members||{}).filter(function(pid){return pid!==myPid;});
-  gameRef.child('teams/'+teamId+'/members/'+myPid).remove();
-  if(remaining.length===0){
-    gameRef.child('teams/'+teamId).remove(); // last one out, team's gone
-  } else if(t.captain===myPid){
-    gameRef.child('teams/'+teamId+'/captain').set(remaining[0]); // auto-promote so the team's never captain-less
-  }
+  var upd={};
+  leaveUpdates(teamId,upd);
+  if(Object.keys(upd).length) gameRef.update(upd);
 }
 
 function makeCaptain(teamId,pid){
@@ -1058,11 +1224,24 @@ function makeCaptain(teamId,pid){
   gameRef.child('teams/'+teamId+'/captain').set(pid);
 }
 
+// Captain-only escape hatch: a team needs every member's pick before it can
+// lock in, so a phone that has gone to sleep (or someone who wandered off)
+// has to be removable or they'd hold the whole team up.
+function removeMember(teamId,pid){
+  var t=latestTeamsData[teamId];
+  if(!t || t.captain!==myPid || pid===myPid) return;
+  var nm=pNames[pid]||'this player';
+  if(!confirm('Remove '+nm+' from the team?')) return;
+  gameRef.child('teams/'+teamId+'/members/'+pid).remove();
+}
+
 function renameTeam(teamId,newName){
   newName=(newName||'').trim();
   var t=latestTeamsData[teamId];
   if(!newName || !t || t.captain!==myPid) return;
   gameRef.child('teams/'+teamId+'/name').set(newName);
+  blurActive();
+  toast('Team name saved');
 }
 
 function connectAsExisting(code,name,existingPid,gv){
@@ -1080,7 +1259,7 @@ function connectAsExisting(code,name,existingPid,gv){
 function connectAsNew(code,name,gv){
   gameCode=code;myName=name;
   var stored=sessionStorage.getItem('wuzzle_pid_'+code);
-  myPid=stored||name.toLowerCase().replace(/\s+/g,'_')+'_'+Date.now();
+  myPid=stored||name.toLowerCase().replace(/[^a-z0-9]+/g,'_')+'_'+Date.now(); // letters/digits only: Firebase keys can't hold . # $ / [ ] (a name like "Dr. Who" used to break joining)
   sessionStorage.setItem('wuzzle_pid_'+code,myPid);
   sessionStorage.setItem('wuzzle_code',code);
   sessionStorage.setItem('wuzzle_name',name);
@@ -1089,6 +1268,14 @@ function connectAsNew(code,name,gv){
   pScores=gv.scores||{};
   pNames=gv.roster||gv.players||{};
   setupGameListeners(gv);
+  // Joining a game that's already under way skips the waiting room, so this
+  // is the only moment to offer a team — otherwise they'd be solo by default.
+  if(gv.status==='playing'||gv.status==='revealed'){
+    // (Round 1 opens with the wine-pour animation, which would cover this —
+    // so give it time to finish first.)
+    var delay=(gv.round===0&&!gv.answers)?3800:900;
+    setTimeout(function(){ goTeams(); toast('Joining late? Pick a team, or go back and play solo'); },delay);
+  }
 }
 
 function connectAndView(code,name,gv){
@@ -1254,6 +1441,7 @@ let gameStarted=false,lastRound=-1;
 let gameSwipeBound=false, swipeIdx=0; // swipe nav: 0=question(home), 1=leaderboard
 let makerGameReady=false,revealShownForRound=false,finalShown=false;
 const MAX_PLAYERS=8;
+const MAX_TEAM_SIZE=8;
 
 // Bump BOTH of these every time a new wuzzle.html is published. The host
 // stamps the game with its build number; a phone or laptop still running an
@@ -1261,8 +1449,8 @@ const MAX_PLAYERS=8;
 // instead of quietly playing by outdated rules. The little label bottom-left
 // of every screen shows which build that device is actually running, and
 // tapping it opens a diagnostics panel.
-const APP_VERSION=2026092103;
-const APP_VERSION_LABEL='v2026.09.21c';
+const APP_VERSION=2026092104;
+const APP_VERSION_LABEL='v2026.09.21d';
 document.getElementById('ver-tag').textContent=APP_VERSION_LABEL;
 let lastGvSnap=null, lastPresenceFix=0, renderedTeamSig=null, hostVersions={};
 
@@ -1412,6 +1600,11 @@ async function onGameState(gv){
       // moved), the question screen was built for the old situation —
       // rebuild it. Otherwise just refresh the live team picks.
       if(document.getElementById('answer-zone') && teamSigFor(gv)!==renderedTeamSig){
+        // I'm now answering as someone different (joined, left or switched
+        // team, or captaincy moved) — so what counts as "already answered"
+        // is whatever THIS unit has answered, not what my old one did.
+        var priorAns=((gv.answers||{})[curRound]||{})[myAnsweringUnitId(gv)];
+        answered=!!priorAns; selVal=priorAns||null;
         renderRound(gv);
       } else {
         updateTeamPickUI(gv);
@@ -1566,6 +1759,7 @@ async function displayRoundResult(gv){
 }
 
 function showRoundResult(correctAnswer, myAnswer, correct, gv){
+  var thBox=document.getElementById('team-hint'); if(thBox) thBox.style.display='none';
   // Update dialogue to show result
   updateDialogue(
     'Question '+(curRound+1)+': '+ROUNDS[curRound].label,
@@ -1584,8 +1778,8 @@ function showRoundResult(correctAnswer, myAnswer, correct, gv){
     var hdr=document.createElement('div');
     hdr.style.cssText='display:grid;grid-template-columns:80px 1fr 1fr;background:var(--wine);';
     hdr.innerHTML='<div style="padding:7px 10px;font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.7);text-transform:uppercase;font-weight:700;"></div>'+
-      '<div style="padding:7px 10px;font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.7);text-transform:uppercase;font-weight:700;">Your Answer</div>'+
-      '<div style="padding:7px 10px;font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.7);text-transform:uppercase;font-weight:700;">Correct</div>';
+      '<div style="padding:7px 10px;font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.7);text-transform:uppercase;font-weight:700;">Correct</div>'+
+      '<div style="padding:7px 10px;font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.7);text-transform:uppercase;font-weight:700;">Your Answer</div>';
     tbl.appendChild(hdr);
     var az=document.getElementById('answer-zone');
     if(az)az.before(tbl);else scr.appendChild(tbl);
@@ -1594,8 +1788,8 @@ function showRoundResult(correctAnswer, myAnswer, correct, gv){
   row.style.cssText='display:grid;grid-template-columns:80px 1fr 1fr;border-top:1px solid var(--bg3);';
   row.innerHTML=
     '<div style="padding:9px 10px;font-size:10px;letter-spacing:1px;color:var(--dim);text-transform:uppercase;font-weight:700;background:var(--bg3);display:flex;align-items:center;">'+ROUNDS[curRound].label+'</div>'+
-    '<div style="padding:9px 10px;font-size:13px;font-weight:700;color:'+(correct?'var(--green)':'var(--red)')+';">'+(myAnswer||'—')+'</div>'+
-    '<div style="padding:9px 10px;font-size:13px;font-weight:700;color:var(--green);">'+correctAnswer+'</div>';
+    '<div style="padding:9px 10px;font-size:13px;font-weight:700;color:var(--green);">'+correctAnswer+'</div>'+
+    '<div style="padding:9px 10px;font-size:13px;font-weight:700;color:'+(correct?'var(--green)':'var(--red)')+';">'+(myAnswer||'—')+'</div>';
   tbl.appendChild(row);
 
   var isLast=(curRound>=5);
@@ -1756,8 +1950,8 @@ function buildMyScoreChip(gv){
     ? {idle:'Choosing…',thinking:'Choosing…',locked:'Team locked in',correct:'Correct!',wrong:'Next time!'}[status]
     : {idle:'Choosing…',thinking:'Choosing…',locked:'Locked in',correct:'Correct!',wrong:'Next time!'}[status];
   var label = myTeamId
-    ? '<div class="msc-label" style="cursor:pointer;text-decoration:underline;" onclick="goTeams()">'+gv.teams[myTeamId].name+' &#9662;</div>'
-    : '<div class="msc-label">Your Score</div>';
+    ? '<div class="msc-label msc-link">'+esc(gv.teams[myTeamId].name)+' &#9662;</div>'
+    : '<div class="msc-label msc-link">Your score &middot; join a team &#9662;</div>';
   return '<div class="my-score-chip"><div>'+label+
     '<div class="msc-val">'+tally+'</div></div>'+
     '<div style="display:flex;align-items:center;gap:8px;">'+
@@ -1800,17 +1994,21 @@ function buildLeaderboard(gv){
 }
 
 function updateScorePanels(gv){
+  // Only touch the DOM when something actually changed — redrawing an
+  // identical chip on every update was eating taps and restarting animations.
   var chip=document.getElementById('my-score-chip-wrap');
-  if(chip) chip.innerHTML=buildMyScoreChip(gv);
+  if(chip){ var ch=buildMyScoreChip(gv); if(chip.__h!==ch){ chip.__h=ch; chip.innerHTML=ch; } }
   var lb=document.getElementById('leaderboard-wrap');
-  if(lb) lb.innerHTML=buildLeaderboard(gv);
+  if(lb){ var lh=buildLeaderboard(gv); if(lb.__h!==lh){ lb.__h=lh; lb.innerHTML=lh; } }
 }
 
-function buildDialogue(line1,line2,line3,line3cls){
+function buildDialogue(line1,line2,line3,line3cls,inlineHint){
+  // inlineHint sits at the end of the question line in its own (smaller,
+  // italic, lighter) type rather than on a line of its own.
   return '<div class="game-dialogue" id="game-dialogue">'+
     '<div class="gd-line1">'+line1+'</div>'+
-    '<div class="gd-line2">'+line2+'</div>'+
-    '<div class="gd-line3'+(line3cls?' '+line3cls:'')+'">'+line3+'</div>'+
+    '<div class="gd-line2">'+line2+(inlineHint?' <span class="gd-hint">'+inlineHint+'</span>':'')+'</div>'+
+    '<div class="gd-line3'+(line3cls?' '+line3cls:'')+'"'+(line3?'':' style="display:none"')+'>'+line3+'</div>'+
   '</div>';
 }
 
@@ -1821,6 +2019,7 @@ function updateDialogue(line1,line2,line3,line3cls){
   el.querySelector('.gd-line2').textContent=line2;
   var l3=el.querySelector('.gd-line3');
   l3.textContent=line3;
+  l3.style.display=line3?'':'none';
   l3.className='gd-line3'+(line3cls?' '+line3cls:'');
 }
 
@@ -1877,6 +2076,7 @@ function renderRound(gv){
   var chipWrap=document.createElement('div');
   chipWrap.id='my-score-chip-wrap';
   chipWrap.innerHTML=buildMyScoreChip(gv);
+  chipWrap.addEventListener('click',function(){ goTeams(); });
   qPanel.appendChild(chipWrap);
 
   var hint=document.createElement('div');
@@ -1897,10 +2097,20 @@ function renderRound(gv){
   hintScoreEl.style.cursor='pointer';
   hintScoreEl.addEventListener('click',function(){ swipeGoTo(0); });
 
+  // Team instruction sits ABOVE the question so it's read first
+  if(myCurrentTeamId(gv.teams||{})){
+    var th=document.createElement('div');
+    th.id='team-hint';
+    th.className='team-hint';
+    th.textContent=TEAM_HINT_DEFAULT;
+    qPanel.appendChild(th);
+  }
+
   var dlg=document.createElement('div');
   dlg.innerHTML=buildDialogue(
     'Question '+(curRound+1)+': '+r.label,
     r.q,
+    '','',
     r.hint
   );
   qPanel.appendChild(dlg.firstChild);
@@ -1966,7 +2176,7 @@ function renderRound(gv){
     cbtn=document.createElement('div');
     cbtn.id='cbtn';
     cbtn.className='team-lockin-note';
-    cbtn.textContent='Discuss with your team — only your captain can lock in your answer.';
+    cbtn.textContent='Waiting for your team…';
   } else {
     cbtn=document.createElement('button');
     cbtn.id='cbtn';
@@ -2065,11 +2275,11 @@ function firstNameOf(gv,pid){
 }
 
 // The one place that decides what "my team" looks like right now.
-// "Active" members are the ones who can actually be asked for a pick: online
-// right now, plus me, plus the captain. Someone whose phone dropped off (or
-// who rejoined under a different identity) no longer holds the whole team
-// hostage — the old rule of "every listed member must have picked" is what
-// deadlocked Team Mobile.
+// A team can only lock in once EVERY member has picked the same answer.
+// (An earlier build only counted members who showed as "online", which meant
+// a phone that had gone to sleep silently dropped out of the vote — and a
+// captain whose teammates were asleep could lock in on their own. Presence
+// is now used only to label who we're waiting for, never to skip them.)
 function teamContext(gv){
   if(!gv || gv.round!==curRound) return null;
   var teams=gv.teams||{};
@@ -2077,23 +2287,34 @@ function teamContext(gv){
   if(!tid) return null;
   var t=teams[tid]||{};
   var members=Object.keys(t.members||{});
-  var online=gv.players||{};
   var picks=(((gv.teamPicks||{})[curRound]||{})[tid])||{};
-  var active=members.filter(function(pid){ return online[pid] || pid===t.captain || pid===myPid; });
-  var vals=active.map(function(pid){ return picks[pid]; });
-  var allPicked=active.length>0 && vals.every(function(v){ return !!v; });
+  var vals=members.map(function(pid){ return picks[pid]; });
+  var allPicked=members.length>0 && vals.every(function(v){ return !!v; });
   var consensus=allPicked && vals.every(function(v){ return v===vals[0]; });
   return {
     teamId:tid, team:t, isCaptain:t.captain===myPid,
-    members:members, active:active, picks:picks,
+    members:members, picks:picks,
     consensus:consensus, value:consensus?vals[0]:null,
-    waitingOn:active.filter(function(pid){ return !picks[pid]; })
+    waitingOn:members.filter(function(pid){ return !picks[pid]; })
   };
 }
 
 function teamWaitingText(gv,ctx){
-  if(ctx.waitingOn.length) return 'Waiting for '+ctx.waitingOn.map(function(pid){ return firstNameOf(gv,pid); }).join(', ')+'…';
+  var online=gv.players||{};
+  if(ctx.waitingOn.length){
+    return 'Waiting for '+ctx.waitingOn.map(function(pid){
+      return firstNameOf(gv,pid)+((online[pid]||pid===myPid)?'':' (offline?)');
+    }).join(', ')+'…';
+  }
   return 'Team is split — keep talking';
+}
+
+const TEAM_HINT_DEFAULT='Team members show opposite their choice. When all members agree, the captain can lock the choice in.';
+function setTeamHint(cls,text){
+  var el=document.getElementById('team-hint');
+  if(!el) return;
+  el.className='team-hint'+(cls?' '+cls:'');
+  el.textContent=text;
 }
 
 function updateTeamPickUI(gv){
@@ -2119,27 +2340,40 @@ function updateTeamPickUI(gv){
     }
   }
 
-  // Name tags on each option, flash when every active member agrees on it,
-  // and keep MY highlight in step with what is actually stored (this is what
-  // restores a member's own selection after a reconnect).
+  // Name tags on each option, flash when every member agrees on it, and keep
+  // MY highlight in step with what is actually stored (this is what restores
+  // a member's own selection after a reconnect).
   d.opts.forEach(function(o,i){
     var tagWrap=document.getElementById('optTags'+i);
     var optBtn=document.getElementById('optBtn'+i);
     if(!tagWrap||!optBtn) return;
     var names=ctx.members.filter(function(pid){ return ctx.picks[pid]===o; })
-                         .map(function(pid){ return firstNameOf(gv,pid); });
+                         .map(function(pid){ return esc(firstNameOf(gv,pid)); });
     tagWrap.innerHTML=names.map(function(n){ return '<div class="opt-team-tag">'+n+'</div>'; }).join('');
-    optBtn.classList.toggle('consensus', ctx.active.length>0 && ctx.active.every(function(pid){ return ctx.picks[pid]===o; }));
+    optBtn.classList.toggle('consensus', ctx.members.length>0 && ctx.members.every(function(pid){ return ctx.picks[pid]===o; }));
     if(!answered) optBtn.classList.toggle('sel', ctx.picks[myPid]===o);
   });
   if(!answered) selVal=ctx.picks[myPid]||null;
 
-  // Captain's Lock In button lights up only when the active team agrees.
-  if(ctx.isCaptain && !answered){
+  // The instruction box above the question changes with the team's state —
+  // for everyone on the team, captain included.
+  if(answered) setTeamHint('done','Team locked in: '+(selVal||teamAnswer||''));
+  else if(ctx.consensus) setTeamHint('agree','Team choice is '+ctx.value+'. Captain to lock in');
+  else setTeamHint('',TEAM_HINT_DEFAULT);
+
+  // Bottom of the screen: the captain's Lock In button, or the same live
+  // status line for everybody else on the team.
+  if(!answered){
     var cb=document.getElementById('cbtn');
-    if(cb && cb.tagName==='BUTTON'){
-      cb.disabled=!ctx.consensus;
-      cb.textContent=ctx.consensus?('Lock In: '+ctx.value):teamWaitingText(gv,ctx);
+    if(cb){
+      if(ctx.isCaptain && cb.tagName==='BUTTON'){
+        cb.disabled=!ctx.consensus;
+        cb.textContent=ctx.consensus?('Lock In: '+ctx.value+'?'):teamWaitingText(gv,ctx);
+      } else if(!ctx.isCaptain && cb.tagName!=='BUTTON'){
+        cb.textContent=ctx.consensus
+          ? ('All agree — waiting for '+firstNameOf(gv,ctx.team.captain)+' to lock in')
+          : teamWaitingText(gv,ctx);
+      }
     }
   }
 }
@@ -2225,6 +2459,7 @@ function teamLockIn(teamId){
     var cb=document.getElementById('cbtn');
     if(cb){cb.disabled=true;cb.textContent='✓ Locked in: '+selVal;cb.style.background='var(--green)';cb.style.opacity='1';}
     document.querySelectorAll('.opt-btn').forEach(function(b){ if(!b.classList.contains('sel')) b.classList.add('dim-opt'); });
+    setTeamHint('done','Team locked in: '+selVal);
     updateDialogue(
       'Question '+(curRound+1)+': '+ROUNDS[curRound].label,
       'Your team\'s answer is locked in — waiting for other teams...',
@@ -2251,8 +2486,8 @@ function renderMyResults(gv, autoAdvance){
     var wasCorrect=!!sc[i];
     rows+='<div style="display:grid;grid-template-columns:80px 1fr 1fr;border-bottom:1px solid var(--bg3);">'+
       '<div style="padding:9px 10px;font-size:10px;letter-spacing:1px;color:var(--dim);text-transform:uppercase;font-weight:700;background:var(--bg3);display:flex;align-items:center;">'+r.label+'</div>'+
-      '<div style="padding:9px 10px;font-size:13px;font-weight:700;color:'+(wasCorrect?'var(--green)':'var(--red)')+';">'+given+'</div>'+
       '<div style="padding:9px 10px;font-size:13px;font-weight:700;color:var(--green);">'+correct+'</div>'+
+      '<div style="padding:9px 10px;font-size:13px;font-weight:700;color:'+(wasCorrect?'var(--green)':'var(--red)')+';">'+given+'</div>'+
     '</div>';
   });
   var pickLabel=myTeamId?'Team Pick':'Your Pick';
@@ -2266,8 +2501,8 @@ function renderMyResults(gv, autoAdvance){
       '<div style="width:100%;max-width:360px;background:#fff;border:1.5px solid var(--border);border-radius:16px;overflow:hidden;margin:16px 0 20px;box-shadow:0 2px 12px rgba(0,0,0,.07);">'+
         '<div style="display:grid;grid-template-columns:80px 1fr 1fr;background:var(--wine);">'+
           '<div style="padding:7px 10px;font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.7);text-transform:uppercase;font-weight:700;"></div>'+
-          '<div style="padding:7px 10px;font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.7);text-transform:uppercase;font-weight:700;">'+pickLabel+'</div>'+
           '<div style="padding:7px 10px;font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.7);text-transform:uppercase;font-weight:700;">Correct</div>'+
+          '<div style="padding:7px 10px;font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.7);text-transform:uppercase;font-weight:700;">'+pickLabel+'</div>'+
         '</div>'+
         rows+
       '</div>'+
@@ -2278,20 +2513,63 @@ function renderMyResults(gv, autoAdvance){
 }
 
 function shareMyResults(){
-  var unitId=myAnsweringUnitId(lastFinalGv||{});
-  var sc=scoreArr(pScores[unitId]);
+  var g=lastFinalGv||{};
+  var unitId=myAnsweringUnitId(g);
+  var sc=scoreArr(((g.scores)||pScores||{})[unitId]);
   var correctCount=sc.filter(Boolean).length;
-  var text='I scored '+correctCount+'/6 in Wuzzle — The Wine Puzzle! 🍷 Can you beat me?';
-  var url=window.location.href.split('?')[0];
+  var team=(g.teams||{})[unitId];
+  // The link carries the game code and who's sharing, so whoever opens it
+  // lands on this game's Game Over screen rather than the generic front page.
+  var url=window.location.href.split('?')[0].split('#')[0]+'?results='+encodeURIComponent(gameCode||'')+'&u='+encodeURIComponent(unitId||'');
+  var text=team
+    ? 'Our team "'+team.name+'" scored '+correctCount+'/6 in Wuzzle — The Wine Puzzle! 🍷 Can you beat us?'
+    : 'I scored '+correctCount+'/6 in Wuzzle — The Wine Puzzle! 🍷 Can you beat me?';
+  // The link goes inside the message text: some share targets (mail apps in
+  // particular) keep only one of "text" or "url" and were dropping the message.
+  var full=text+'\n\n'+url;
   if(navigator.share){
-    navigator.share({title:'My Wuzzle score',text:text,url:url}).catch(function(){});
+    navigator.share({title:'My Wuzzle score',text:full}).catch(function(){});
   } else if(navigator.clipboard){
-    navigator.clipboard.writeText(text+' '+url).then(function(){
+    navigator.clipboard.writeText(full).then(function(){
       toast('Copied! Paste it to share your score.');
     }).catch(function(){ toast(text); });
   } else {
     toast(text);
   }
+}
+
+// Someone opening a shared-score link sees that game's Game Over screen.
+let sharedView=false, sharedViewUnit=null;
+function viewSharedResults(code,unit){
+  goPlayer();
+  var jc=document.getElementById('jcode'); if(jc) jc.value=code;
+  db.ref('games/'+code).once('value',function(s){
+    var gv=s.val();
+    if(!gv || gv.status!=='final'){
+      var err=document.getElementById('jerr');
+      if(err) err.textContent=gv?'That game is still being played — join it with the code above':'We couldn\'t find that game — it may have been cleared';
+      return;
+    }
+    sharedView=true; sharedViewUnit=unit||null;
+    gameCode=code; gData=gv.gameData; pNames=gv.roster||gv.players||{}; pScores=gv.scores||{};
+    document.getElementById('join-screen').style.display='none';
+    document.getElementById('game-screen').style.display='flex';
+    renderFinal(gv);
+  });
+}
+
+// "New Game" has to forget the finished game before reloading. It used to
+// just reload the page — but the page remembers the game you were in and
+// re-opens it on load, which is why the old results appeared on top of the
+// front page a moment after it showed.
+function newGame(){
+  try{
+    if(gameRef) gameRef.off();
+    var codes=[sessionStorage.getItem('wuzzle_code'),gameCode];
+    codes.forEach(function(c){ if(c) sessionStorage.removeItem('wuzzle_pid_'+c); });
+    sessionStorage.removeItem('wuzzle_code');
+  }catch(e){}
+  window.location.href=window.location.href.split('?')[0].split('#')[0];
 }
 
 function exitGame(){
@@ -2308,23 +2586,25 @@ function renderFinal(gv){
   lastFinalGv=gv;
   var scr=document.getElementById('game-screen');
   var sc=gv.scores||{};
-  var myUnitId=myAnsweringUnitId(gv);
+  // Someone who arrived through a shared link has no team or player of their
+  // own here — the row that's highlighted is the person who shared it.
+  var myUnitId=sharedView?sharedViewUnit:myAnsweringUnitId(gv);
   var tots=getAnsweringUnits(gv).map(function(u){
     return {id:u.id,name:u.name,isTeam:u.isTeam,memberCount:u.memberPids.length,pts:scoreArr(sc[u.id]).filter(Boolean).length,me:u.id===myUnitId};
   }).sort(function(a,b){return b.pts-a.pts;});
   var me=tots.find(function(p){return p.me;})||{pts:0};
   var win=tots[0];
   var wine=(gData?[gData.v.correct,gData.r.correct,gData.g.correct,'by',gData.w.correct].join(' '):'');
-  var trop=me.pts===6?'🏆':me.pts>=4?'🥂':me.pts>=2?'🍷':'🫗';
+  var trop=sharedView?'🏆':(me.pts===6?'🏆':me.pts>=4?'🥂':me.pts>=2?'🍷':'🫗');
   
   // Leaderboard rows
   var lbRows=tots.map(function(p,i){
     var nameColor=p.me?'var(--wine)':'var(--muted)';
     var nameWeight=p.me?'700':'400';
-    var label=p.name+(p.isTeam?' <span style="font-size:11px;color:var(--dim);font-weight:400;">('+p.memberCount+')</span>':'');
+    var label=esc(p.name)+(p.isTeam?' <span style="font-size:11px;color:var(--dim);font-weight:400;">('+p.memberCount+')</span>':'');
     return '<div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--bg3);">'+
       '<div style="width:28px;text-align:center;font-size:'+(i===0?'18':'13')+'px;color:'+(i===0?'var(--gold)':'var(--dim)')+';">'+(i===0?'★':(i+1))+'</div>'+
-      '<div style="flex:1;font-size:14px;color:'+nameColor+';font-weight:'+nameWeight+';">'+label+(p.me?' (you)':'')+'</div>'+
+      '<div style="flex:1;font-size:14px;color:'+nameColor+';font-weight:'+nameWeight+';">'+label+(p.me&&!sharedView?' (you)':'')+'</div>'+
       '<div style="font-family:Georgia,serif;font-size:20px;color:var(--text);">'+p.pts+'<span style="font-size:11px;color:var(--dim);">/6</span></div>'+
     '</div>';
   }).join('');
@@ -2336,22 +2616,28 @@ function renderFinal(gv){
     '</div>'+
     '<div class="fin-scr">'+
       '<div class="fin-trp">'+trop+'</div>'+
-      '<div class="fin-ttl">'+(win&&win.me?'You Win! 🎉':(win?win.name+' Wins!':'Game Over!'))+'</div>'+
-      '<div class="fin-wine">You were tasting:<br><strong>'+wine+'</strong></div>'+
+      '<div class="fin-ttl">'+(sharedView?(win?esc(win.name)+' wins!':'Game Over!'):(win&&win.me?'You Win! 🎉':(win?esc(win.name)+' Wins!':'Game Over!')))+'</div>'+
+      (sharedView&&me.name?'<div style="font-size:13px;color:var(--muted);margin:-2px 0 12px;">Shared by <strong>'+esc(me.name)+'</strong> &mdash; '+me.pts+'/6 correct</div>':'')+
+      '<div class="fin-wine">'+(sharedView?'The wine was:':'You were tasting:')+'<br><strong>'+wine+'</strong></div>'+
       '<div style="width:100%;max-width:360px;background:#fff;border:1.5px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:20px;animation:scaleIn .5s .5s ease both;opacity:0;animation-fill-mode:both;box-shadow:0 2px 12px rgba(0,0,0,.07);">'+
         lbRows+
       '</div>'+
+      (sharedView?
+      '<div style="width:100%;max-width:360px;">'+
+        '<div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:14px;">Wuzzle is a wine-tasting puzzle for friends. Everyone tastes the same wine and works out its flavour, grape, country, region, vintage and winemaker &mdash; on your own or in teams.</div>'+
+        '<button onclick="newGame()" style="width:100%;background:var(--wine);border:none;border-radius:12px;padding:15px;color:#fff;font-family:Georgia,serif;font-size:16px;letter-spacing:2px;cursor:pointer;">Play Wuzzle</button>'+
+      '</div>':
       '<div style="display:flex;gap:10px;width:100%;max-width:360px;">'+
         '<button onclick="renderMyResults(lastFinalGv,false)" style="flex:1;background:transparent;border:1.5px solid var(--border);border-radius:12px;padding:12px;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.5px;cursor:pointer;">&larr; My Results</button>'+
         '<button onclick="shareMyResults()" style="flex:1;background:var(--wine);border:none;border-radius:12px;padding:12px;color:#fff;font-size:12px;font-weight:700;letter-spacing:.5px;cursor:pointer;">&#128228; Share My Score</button>'+
       '</div>'+
       '<div style="display:flex;gap:10px;width:100%;max-width:360px;margin-top:10px;">'+
-        '<button onclick="window.location.href=window.location.href.split(\'?\')[0]" style="flex:1;background:transparent;border:1.5px solid var(--wine);border-radius:12px;padding:12px;color:var(--wine);font-size:12px;font-weight:700;letter-spacing:.5px;cursor:pointer;">New Game</button>'+
+        '<button onclick="newGame()" style="flex:1;background:transparent;border:1.5px solid var(--wine);border-radius:12px;padding:12px;color:var(--wine);font-size:12px;font-weight:700;letter-spacing:.5px;cursor:pointer;">New Game</button>'+
         '<button onclick="exitGame()" style="flex:1;background:transparent;border:1.5px solid var(--border);border-radius:12px;padding:12px;color:var(--dim);font-size:12px;font-weight:700;letter-spacing:.5px;cursor:pointer;">Exit</button>'+
-      '</div>'+
+      '</div>')+
     '</div>';
   
-  if(me.pts>=4)setTimeout(confetti,500);
+  if(!sharedView && me.pts>=4)setTimeout(confetti,500);
 }
 
 window.addEventListener('DOMContentLoaded',function(){
@@ -2360,6 +2646,12 @@ window.addEventListener('DOMContentLoaded',function(){
   var makerCard=document.getElementById('makerCard');
   if(isMaker){ if(makerCard) makerCard.style.display=''; }
   else { if(makerCard) makerCard.remove(); } // never present in the DOM for a normal visitor — not just hidden with CSS
+
+  initTeamScreenEvents();
+
+  // A shared score link goes straight to that game's Game Over screen
+  var sharedCode=params.get('results');
+  if(sharedCode){ viewSharedResults(sharedCode.toUpperCase(),params.get('u')); return; }
 
   var urlCode=params.get('code');
   if(urlCode){goPlayer();document.getElementById('jcode').value=urlCode.toUpperCase();var sn=sessionStorage.getItem('wuzzle_name');if(sn)document.getElementById('jname').value=sn;return;}
