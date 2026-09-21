@@ -281,7 +281,7 @@ body { font-family: 'Lato', sans-serif; background: #241019; min-height: 100vh; 
 .opt-btn.sel .opt-num { background:var(--wine); color:#fff; }
 .opt-lbl { flex:1; font-size:15px; color:var(--text); font-weight:500; letter-spacing:.3px; }
 .opt-tck { font-size:20px; width:24px; text-align:center; flex-shrink:0; }
-.opt-team-tags { display:flex; flex-direction:column; align-items:flex-end; gap:3px; flex-shrink:0; max-width:90px; }
+.opt-team-tags { display:flex; flex-direction:column; align-items:flex-end; gap:3px; flex-shrink:0; max-width:130px; }
 .opt-team-tag { font-size:10px; font-weight:700; color:var(--blue); background:rgba(26,95,168,.1); padding:2px 7px; border-radius:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .opt-btn.consensus { border-color:var(--gold) !important; animation:consensusFlash 1s ease-in-out infinite; }
 @keyframes consensusFlash { 0%,100%{ box-shadow:0 0 0 rgba(212,160,16,0); } 50%{ box-shadow:0 0 16px rgba(212,160,16,.65); } }
@@ -423,6 +423,8 @@ body { font-family: 'Lato', sans-serif; background: #241019; min-height: 100vh; 
 .lb-name{ flex:1; font-size:14px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .lb-score{ font-family:Georgia,serif; font-size:18px; color:var(--wine); flex-shrink:0; }
 .lb-score small{ font-size:11px; color:var(--dim); font-family:'Lato',sans-serif; }
+#ver-tag { position:fixed; bottom:1px; left:6px; z-index:50; font:9px/11px Lato,sans-serif; letter-spacing:.5px; color:var(--dim); opacity:.5; cursor:pointer; padding:2px 4px; }
+#diag-panel { display:none; position:fixed; left:8px; right:8px; bottom:22px; max-height:60vh; overflow:auto; z-index:9999; background:#241019; color:#f4d9c8; font:11px/1.55 ui-monospace,Menlo,Consolas,monospace; padding:12px 14px; border-radius:12px; white-space:pre-wrap; word-break:break-word; box-shadow:0 8px 30px rgba(0,0,0,.4); }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
@@ -511,6 +513,7 @@ body { font-family: 'Lato', sans-serif; background: #241019; min-height: 100vh; 
       <div class="p-count" id="hpcount">0 players joined</div>
     </div>
     <div class="p-list" id="hplist"></div>
+    <div id="hver-warn" style="display:none;margin:12px auto 0;max-width:520px;background:#fff4e0;border:1.5px solid var(--gold);border-radius:12px;padding:10px 14px;font-size:13px;line-height:1.5;color:#7a4a00;text-align:left;"></div>
   </div>
   <div class="h-status" id="h-status">
     <div class="hs-ttl">Live Player Status</div>
@@ -557,6 +560,7 @@ body { font-family: 'Lato', sans-serif; background: #241019; min-height: 100vh; 
       </button>
       <div id="wteam-status" style="font-size:11px;color:var(--dim);margin-top:6px;letter-spacing:.5px;"></div>
     </div>
+    <div id="wver-warn" style="display:none;margin:14px 20px 0;max-width:320px;background:#fff4e0;border:1.5px solid var(--gold);border-radius:12px;padding:10px 14px;font-size:12.5px;line-height:1.5;color:#7a4a00;text-align:left;"></div>
     <div id="wstart-area" style="margin-top:20px;width:100%;max-width:320px;display:none;">
       <div id="wstart-wrap" style="text-align:center;">
         <button onclick="startGameFromWaiting()"
@@ -592,6 +596,8 @@ body { font-family: 'Lato', sans-serif; background: #241019; min-height: 100vh; 
   <div id="clueStrip"></div>
 </div>
 <div class="toast" id="toast"></div>
+<div id="ver-tag" onclick="toggleDiag()" title="Tap for diagnostics"></div>
+<div id="diag-panel" onclick="toggleDiag()"></div>
 
 <script>
 const FB={apiKey:"AIzaSyAevuJs2PAMeP-QiFNMwskdDV7LKeJCqvI",authDomain:"wuzzle-6e363.firebaseapp.com",projectId:"wuzzle-6e363",storageBucket:"wuzzle-6e363.firebasestorage.app",messagingSenderId:"364981885652",appId:"1:364981885652:web:b795689f422e2c15f2f941",databaseURL:"https://wuzzle-6e363-default-rtdb.firebaseio.com"};
@@ -765,7 +771,7 @@ function goPlayer(){
 function hostLaunch(){
   gameCode=genCode();gData=buildGD();
   gameRef=db.ref('games/'+gameCode);
-  gameRef.set({status:'lobby',round:0,revealed:false,gameData:gData,players:{},answers:{},scores:{}});
+  gameRef.set({status:'lobby',round:0,revealed:false,gameData:gData,players:{},answers:{},scores:{},appVersion:APP_VERSION});
   document.getElementById('hcode').textContent=gameCode;
   document.getElementById('hjoin').textContent=window.location.href.split('?')[0]+'?code='+gameCode;
   document.getElementById('hlaunch').classList.add('hidden');
@@ -774,6 +780,7 @@ function hostLaunch(){
   document.getElementById('wine-setup').style.opacity='.55';
   document.getElementById('wine-setup').style.pointerEvents='none';
   gameRef.child('players').on('value',s=>{pNames=s.val()||{};updateHPList();});
+  gameRef.child('versions').on('value',s=>{hostVersions=s.val()||{};updateHPList();});
   gameRef.update({hostReady:true});
   toast('Room created! Code: '+gameCode);
 }
@@ -787,6 +794,7 @@ function resumeGame(){
     gameCode=code;
     gameRef=db.ref('games/'+gameCode);
     gData=gv.gameData||gData;
+    if((gv.appVersion||0)<APP_VERSION) gameRef.child('appVersion').set(APP_VERSION);
 
     // Re-populate the setup fields from what's actually saved for this game
     ['f','g','c','r','v','w'].forEach(function(k){
@@ -812,6 +820,7 @@ function resumeGame(){
     if(gv.status!=='lobby') makerGameReady=true;
 
     gameRef.child('players').on('value',function(s2){pNames=s2.val()||{};updateHPList();});
+    gameRef.child('versions').on('value',function(s3){hostVersions=s3.val()||{};updateHPList();});
     toast('Game '+gameCode+' loaded — edit and save below.');
   });
 }
@@ -826,16 +835,19 @@ function saveGameEdits(){
 function hostStart(){
   var ns=Object.keys(pNames);
   if(!ns.length){toast('Wait for at least one player to join!',true);return;}
+  var hs=hostStaleNames();
+  if(hs.names.length && !confirm(staleMessage(hs.names)+'\n\nStart anyway?')) return;
   makerGameReady=true;
   var b=document.getElementById('hstart');
   b.textContent='Game started!';b.style.background='var(--green)';b.disabled=true;
   gameRef.update({status:'playing',round:0,hostReady:true});
   toast('Game started! Players\' screens will update now.');
 }
+function normName(n){ return (n||'').toLowerCase().replace(/\s+/g,' ').trim(); }
 function findPlayerByName(players,name){
-  var lower=name.toLowerCase().trim();
+  var lower=normName(name);
   return Object.keys(players).find(function(pid){
-    return (players[pid]||'').toLowerCase().trim()===lower;
+    return normName(players[pid])===lower;
   })||null;
 }
 
@@ -858,6 +870,7 @@ function setupGameListeners(gv){
   document.getElementById('wname').textContent="You're in as "+myName;
 
   // Write to persistent roster (never auto-removed) AND lobby players node
+  gameRef.child('versions/'+myPid).set(APP_VERSION);
   gameRef.child('roster/'+myPid).set(myName);
   // Only remove from lobby players node on disconnect — NOT from roster
   gameRef.child('players/'+myPid).set(myName);
@@ -865,6 +878,7 @@ function setupGameListeners(gv){
   // Re-register on reconnect
   db.ref('.info/connected').on('value',function(snap){
     if(snap.val()===true&&gameRef&&myPid){
+      gameRef.child('versions/'+myPid).set(APP_VERSION);
       gameRef.child('players/'+myPid).set(myName);
       gameRef.child('players/'+myPid).onDisconnect().remove();
       gameRef.child('roster/'+myPid).set(myName);
@@ -1097,6 +1111,7 @@ function playerJoin(){
   db.ref('games/'+code).once('value',function(s){
     if(!s.exists()){err.textContent='Game not found - check the code';return;}
     var gv=s.val(),gst=gv.status;
+    if(gv.appVersion && gv.appVersion>APP_VERSION){ showUpdateBanner(gv.appVersion,code); err.textContent='This game needs a newer version - tap the orange bar to update'; return; }
     var players=Object.assign({},gv.roster||{},gv.players||{});
     var existingPid=findPlayerByName(players,name);
     if(!existingPid && Object.keys(players).length>=MAX_PLAYERS){
@@ -1133,6 +1148,14 @@ function updateHPList(){
   var ns=Object.values(pNames);
   document.getElementById('hpcount').textContent=ns.length+' player'+(ns.length!==1?'s':'')+' joined';
   document.getElementById('hplist').innerHTML=ns.map(n=>'<div class="p-chip"><div class="p-dot"></div>'+n+'</div>').join('');
+  var hw=document.getElementById('hver-warn');
+  if(hw){
+    var hs=hostStaleNames(), msg=[];
+    if(hs.hostOld) msg.push('⚠ This host page ('+APP_VERSION_LABEL+') is older than some players\' — reload it first.');
+    if(hs.names.length) msg.push(staleMessage(hs.names));
+    hw.innerHTML=msg.join('<br>');
+    hw.style.display=msg.length?'block':'none';
+  }
   var b=document.getElementById('hstart');
   if(!b||makerGameReady)return;
   if(ns.length>0){b.removeAttribute('disabled');b.textContent='Start the Game →';}
@@ -1171,6 +1194,9 @@ function startGameFromWaiting(){
   if(!gameRef)return;
   var pids=Object.keys(pNames);
   if(!pids.length){toast('Wait for at least one player!',true);return;}
+  var gvs=lastGvSnap||{};
+  var stale=staleDeviceNames(gvs.players,gvs.versions,gvs.appVersion);
+  if(stale.length && !confirm(staleMessage(stale)+'\n\nStart anyway?')) return;
   gameRef.child('status').once('value',function(s){
     if(s.val()==='final'){toast('This game has already finished',true);return;}
     var sa=document.getElementById('wstart-area');
@@ -1229,6 +1255,51 @@ let gameSwipeBound=false, swipeIdx=0; // swipe nav: 0=question(home), 1=leaderbo
 let makerGameReady=false,revealShownForRound=false,finalShown=false;
 const MAX_PLAYERS=8;
 
+// Bump BOTH of these every time a new wuzzle.html is published. The host
+// stamps the game with its build number; a phone or laptop still running an
+// older copy of the page (a tab left open, a cached copy) sees a banner
+// instead of quietly playing by outdated rules. The little label bottom-left
+// of every screen shows which build that device is actually running, and
+// tapping it opens a diagnostics panel.
+const APP_VERSION=2026092103;
+const APP_VERSION_LABEL='v2026.09.21c';
+document.getElementById('ver-tag').textContent=APP_VERSION_LABEL;
+let lastGvSnap=null, lastPresenceFix=0, renderedTeamSig=null, hostVersions={};
+
+// Who is online right now on a build older than the newest one in this game?
+// Devices running the pre-version-stamp pages never report a build at all,
+// so "no report" counts as old — that is exactly how a stale tab shows up.
+function newestBuild(versions,gameBuild){
+  var n=Math.max(APP_VERSION,gameBuild||0);
+  Object.keys(versions||{}).forEach(function(k){ if(versions[k]>n) n=versions[k]; });
+  return n;
+}
+function staleDeviceNames(players,versions,gameBuild){
+  players=players||{}; versions=versions||{};
+  var newest=newestBuild(versions,gameBuild);
+  return Object.keys(players).filter(function(pid){ return !(versions[pid]>=newest); })
+                             .map(function(pid){ return players[pid]||pid; });
+}
+function staleMessage(names){
+  return '⚠ '+(names.length===1?'1 device is':names.length+' devices are')+' on an old version of Wuzzle: '+names.join(', ')+
+         '. Scores and team play can go wrong. Close the tab and reopen the join link before starting.';
+}
+function updateVersionWarnings(gv){
+  var newest=newestBuild(gv.versions,gv.appVersion);
+  if(newest>APP_VERSION) showUpdateBanner(newest,gameCode);
+  var el=document.getElementById('wver-warn');
+  if(!el) return;
+  var stale=staleDeviceNames(gv.players,gv.versions,gv.appVersion);
+  if(stale.length){ el.textContent=staleMessage(stale); el.style.display='block'; }
+  else el.style.display='none';
+}
+function hostStaleNames(){
+  var newest=newestBuild(hostVersions,0);
+  var names=staleDeviceNames(pNames,hostVersions,0);
+  return {names:names,hostOld:newest>APP_VERSION};
+}
+
+
 function shuffle(a){var b=a.slice();for(var i=b.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=b[i];b[i]=b[j];b[j]=t;}return b;}
 function genCode(){var c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';return Array.from({length:4},()=>c[Math.floor(Math.random()*c.length)]).join('');}
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
@@ -1280,6 +1351,20 @@ async function winePour(){
 
 async function onGameState(gv){
   if(!gv)return;
+  lastGvSnap=gv;
+  updateVersionWarnings(gv);
+  // One source of truth: every snapshot refreshes the team data, so nothing
+  // downstream ever works from a copy that was captured earlier.
+  latestTeamsData=gv.teams||{};
+  if(gv.appVersion && gv.appVersion>APP_VERSION) showUpdateBanner(gv.appVersion,gameCode);
+  // Self-heal presence. Firebase can run a stale "disconnect" cleanup from an
+  // old connection AFTER a phone has reconnected, wiping this player's
+  // "online" marker while they're plainly still here. If we notice we've been
+  // wiped, put ourselves back (rate-limited).
+  if(myPid && gameRef && gv.status!=='final' && gv.players && !gv.players[myPid] && Date.now()-lastPresenceFix>4000){
+    lastPresenceFix=Date.now();
+    registerPresence();
+  }
   gData=gv.gameData||gData;
   // Always use roster as the authoritative player list — it never shrinks on disconnect
   if(gv.roster)pNames=gv.roster;
@@ -1323,6 +1408,14 @@ async function onGameState(gv){
       await sleep(500);renderRound(gv);scr.style.opacity='1';return;
     }
     if(document.getElementById('game-screen').innerHTML){
+      // If my team situation changed mid-round (joined/left a team, captaincy
+      // moved), the question screen was built for the old situation —
+      // rebuild it. Otherwise just refresh the live team picks.
+      if(document.getElementById('answer-zone') && teamSigFor(gv)!==renderedTeamSig){
+        renderRound(gv);
+      } else {
+        updateTeamPickUI(gv);
+      }
       updateScorePanels(gv);
       if(!allLockedHandled)checkAllLocked(gv);
     }
@@ -1819,6 +1912,7 @@ function renderRound(gv){
   var myTeamId=myCurrentTeamId(gv.teams||{});
   var myTeam=myTeamId?gv.teams[myTeamId]:null;
   var isCaptain=myTeam?(myTeam.captain===myPid):false;
+  renderedTeamSig=teamSigFor(gv);
   d.opts.forEach(function(o,i){
     var btn=document.createElement('button');
     btn.className='opt-btn';
@@ -1921,37 +2015,6 @@ function renderRound(gv){
     obs.observe(cbtn,{attributes:true,attributeFilter:['disabled']});
   }
 
-  // Live team-pick visibility: as teammates toggle their choices, show a
-  // small tag with their name on whichever option they currently have
-  // selected, and flash that option once every member agrees on it —
-  // the captain's lock button only lights up once that happens.
-  if(myTeamId && !(answered && selVal)){
-    gameRef.child('teamPicks/'+curRound+'/'+myTeamId).on('value',function(s){
-      var picks=s.val()||{};
-      var memberPids=Object.keys((gv.teams[myTeamId]||{}).members||{});
-      d.opts.forEach(function(o,i){
-        var tagWrap=document.getElementById('optTags'+i);
-        var optBtn=document.getElementById('optBtn'+i);
-        if(!tagWrap||!optBtn) return;
-        var namesHere=memberPids.filter(function(pid){ return picks[pid]===o; })
-                                 .map(function(pid){ return (pNames[pid]||pid).split(' ')[0]; });
-        tagWrap.innerHTML=namesHere.map(function(n){ return '<div class="opt-team-tag">'+n+'</div>'; }).join('');
-        var isConsensus=memberPids.length>0 && namesHere.length===memberPids.length;
-        optBtn.classList.toggle('consensus',isConsensus);
-      });
-      if(isCaptain){
-        var allPicked=memberPids.length>0 && memberPids.every(function(pid){ return picks[pid]; });
-        var vals=memberPids.map(function(pid){ return picks[pid]; });
-        var consensus=allPicked && vals.every(function(v){ return v===vals[0]; });
-        var liveCbtn=document.getElementById('cbtn');
-        if(liveCbtn && liveCbtn.tagName==='BUTTON' && !answered){
-          liveCbtn.disabled=!consensus;
-          liveCbtn.textContent=consensus?('Lock In: '+vals[0]):'Waiting for team consensus…';
-        }
-      }
-    });
-  }
-
   // ===== Panel 2: Leaderboard =====
   var sPanel=document.createElement('div');
   sPanel.className='swipe-panel';
@@ -1973,6 +2036,156 @@ function renderRound(gv){
 
   setupGameSwipe();
   updateScorePanels(gv);
+  // Team picks are drawn from the game snapshot itself (see updateTeamPickUI),
+  // not from a separate per-round listener — so there is nothing to leak
+  // across rounds or go stale after a reconnect.
+  updateTeamPickUI(gv);
+}
+
+// ===== Team play: everything below reads a FRESH game snapshot =====
+
+function teamSigFor(gv){
+  var teams=gv.teams||{};
+  var tid=myCurrentTeamId(teams);
+  if(!tid) return '|';
+  return tid+'|'+((teams[tid]||{}).captain===myPid?'c':'m');
+}
+
+// Short label for a player: their first word — unless someone else in the game
+// shares that first word ("Mobile Chrome" / "Mobile Edge" / "Mobile DDG"), in
+// which case the whole name, so tags and messages are never ambiguous.
+function firstNameOf(gv,pid){
+  var roster=(gv&&gv.roster)||pNames||{};
+  var full=String(roster[pid]||pid);
+  var first=full.split(' ')[0];
+  var clash=Object.keys(roster).some(function(o){
+    return o!==pid && String(roster[o]).split(' ')[0].toLowerCase()===first.toLowerCase();
+  });
+  return clash?full:first;
+}
+
+// The one place that decides what "my team" looks like right now.
+// "Active" members are the ones who can actually be asked for a pick: online
+// right now, plus me, plus the captain. Someone whose phone dropped off (or
+// who rejoined under a different identity) no longer holds the whole team
+// hostage — the old rule of "every listed member must have picked" is what
+// deadlocked Team Mobile.
+function teamContext(gv){
+  if(!gv || gv.round!==curRound) return null;
+  var teams=gv.teams||{};
+  var tid=myCurrentTeamId(teams);
+  if(!tid) return null;
+  var t=teams[tid]||{};
+  var members=Object.keys(t.members||{});
+  var online=gv.players||{};
+  var picks=(((gv.teamPicks||{})[curRound]||{})[tid])||{};
+  var active=members.filter(function(pid){ return online[pid] || pid===t.captain || pid===myPid; });
+  var vals=active.map(function(pid){ return picks[pid]; });
+  var allPicked=active.length>0 && vals.every(function(v){ return !!v; });
+  var consensus=allPicked && vals.every(function(v){ return v===vals[0]; });
+  return {
+    teamId:tid, team:t, isCaptain:t.captain===myPid,
+    members:members, active:active, picks:picks,
+    consensus:consensus, value:consensus?vals[0]:null,
+    waitingOn:active.filter(function(pid){ return !picks[pid]; })
+  };
+}
+
+function teamWaitingText(gv,ctx){
+  if(ctx.waitingOn.length) return 'Waiting for '+ctx.waitingOn.map(function(pid){ return firstNameOf(gv,pid); }).join(', ')+'…';
+  return 'Team is split — keep talking';
+}
+
+function updateTeamPickUI(gv){
+  var ctx=teamContext(gv);
+  if(!ctx) return;
+  var az=document.getElementById('answer-zone');
+  if(!az || !gData) return;
+  var d=gData[ROUNDS[curRound].key];
+
+  // Captain already locked the team in? Every member's screen should say so.
+  var teamAnswer=((gv.answers||{})[curRound]||{})[ctx.teamId];
+  if(teamAnswer && !answered){
+    answered=true; selVal=teamAnswer;
+    az.querySelectorAll('.opt-btn').forEach(function(b){
+      var isPick=b.getAttribute('data-val')===teamAnswer;
+      b.classList.toggle('sel',isPick);
+      b.classList.toggle('dim-opt',!isPick);
+    });
+    var lockEl=document.getElementById('cbtn');
+    if(lockEl){
+      if(lockEl.tagName==='BUTTON'){ lockEl.disabled=true; lockEl.textContent='✓ Locked in: '+teamAnswer; lockEl.style.background='var(--green)'; lockEl.style.opacity='1'; }
+      else lockEl.textContent='✓ Your team locked in: '+teamAnswer;
+    }
+  }
+
+  // Name tags on each option, flash when every active member agrees on it,
+  // and keep MY highlight in step with what is actually stored (this is what
+  // restores a member's own selection after a reconnect).
+  d.opts.forEach(function(o,i){
+    var tagWrap=document.getElementById('optTags'+i);
+    var optBtn=document.getElementById('optBtn'+i);
+    if(!tagWrap||!optBtn) return;
+    var names=ctx.members.filter(function(pid){ return ctx.picks[pid]===o; })
+                         .map(function(pid){ return firstNameOf(gv,pid); });
+    tagWrap.innerHTML=names.map(function(n){ return '<div class="opt-team-tag">'+n+'</div>'; }).join('');
+    optBtn.classList.toggle('consensus', ctx.active.length>0 && ctx.active.every(function(pid){ return ctx.picks[pid]===o; }));
+    if(!answered) optBtn.classList.toggle('sel', ctx.picks[myPid]===o);
+  });
+  if(!answered) selVal=ctx.picks[myPid]||null;
+
+  // Captain's Lock In button lights up only when the active team agrees.
+  if(ctx.isCaptain && !answered){
+    var cb=document.getElementById('cbtn');
+    if(cb && cb.tagName==='BUTTON'){
+      cb.disabled=!ctx.consensus;
+      cb.textContent=ctx.consensus?('Lock In: '+ctx.value):teamWaitingText(gv,ctx);
+    }
+  }
+}
+
+function registerPresence(){
+  if(!gameRef||!myPid) return;
+  gameRef.child('versions/'+myPid).set(APP_VERSION);
+  gameRef.child('players/'+myPid).set(myName);
+  gameRef.child('players/'+myPid).onDisconnect().remove();
+  gameRef.child('roster/'+myPid).set(myName);
+}
+
+function showUpdateBanner(ver,code){
+  if(document.getElementById('update-banner')) return;
+  var b=document.createElement('div');
+  b.id='update-banner';
+  b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:10000;background:#c8860a;color:#fff;text-align:center;padding:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:Lato,sans-serif;';
+  b.textContent='A newer version of Wuzzle is available — tap here to update';
+  b.onclick=function(){ location.href=location.pathname+'?code='+(code||gameCode||'')+'&v='+ver; };
+  document.body.appendChild(b);
+}
+
+function toggleDiag(){
+  var p=document.getElementById('diag-panel');
+  if(p.style.display==='block'){ p.style.display='none'; return; }
+  var gv=lastGvSnap||{}, L=[];
+  L.push('Wuzzle '+APP_VERSION_LABEL+'  (build '+APP_VERSION+')');
+  L.push('Game was created by build: '+(gv.appVersion||'unknown / older'));
+  L.push('Game '+(gameCode||'—')+'  ·  status '+(gv.status||'—')+'  ·  round '+((gv.round!==undefined)?(gv.round+1):'—'));
+  L.push('Me: '+(myName||'—')+'   pid: '+(myPid||'—'));
+  var teams=gv.teams||{}, tid=myPid?myCurrentTeamId(teams):null;
+  if(tid){
+    var t=teams[tid], online=gv.players||{}, roster=gv.roster||{};
+    var picks=(((gv.teamPicks||{})[gv.round]||{})[tid])||{};
+    L.push('Team: '+t.name+'  ('+tid+')');
+    L.push('My role: '+(t.captain===myPid?'CAPTAIN':'member')+'   captain pid: '+t.captain);
+    Object.keys(t.members||{}).forEach(function(pid){
+      L.push('  · '+(roster[pid]||pid)+'  '+(online[pid]?'online ':'OFFLINE')+'  pick: '+(picks[pid]||'—')+(pid===myPid?'   <- me':''));
+    });
+  } else {
+    L.push('Team: none — this device is playing SOLO');
+  }
+  L.push('Answers in this round: '+JSON.stringify(((gv.answers||{})[gv.round])||{}));
+  L.push('Answering units in game: '+(gv.status?getAnsweringUnits(gv).length:'—'));
+  p.textContent=L.join('\n');
+  p.style.display='block';
 }
 
 function lockIn(){
@@ -1995,29 +2208,29 @@ function lockIn(){
 
 function teamLockIn(teamId){
   if(answered) return;
-  gameRef.child('teamPicks/'+curRound+'/'+teamId).once('value',function(s){
-    var picks=s.val()||{};
-    gameRef.child('teams/'+teamId+'/members').once('value',function(ms){
-      var memberPids=Object.keys(ms.val()||{});
-      if(memberPids.length===0) return;
-      var vals=memberPids.map(function(pid){ return picks[pid]; });
-      // Re-verify consensus here rather than trusting the button's own
-      // enabled state — picks could in principle have changed in the
-      // instant between the button lighting up and being tapped.
-      if(vals.some(function(v){ return !v; })) return;
-      if(!vals.every(function(v){ return v===vals[0]; })) return;
-      answered=true;
-      selVal=vals[0];
-      var cb=document.getElementById('cbtn');
-      if(cb){cb.disabled=true;cb.textContent='✓ Locked in: '+selVal;cb.style.background='var(--green)';cb.style.opacity='1';}
-      document.querySelectorAll('.opt-btn').forEach(function(b){ if(!b.classList.contains('sel')) b.classList.add('dim-opt'); });
-      updateDialogue(
-        'Question '+(curRound+1)+': '+ROUNDS[curRound].label,
-        'Your team\'s answer is locked in — waiting for other teams...',
-        '',''
-      );
-      gameRef.child('answers/'+curRound+'/'+teamId).set(vals[0]);
-    });
+  // Read everything fresh — never trust what this screen last drew — and
+  // apply exactly the same rules as the button, so the two can't disagree.
+  gameRef.once('value',function(snap){
+    var g=snap.val();
+    if(!g) return;
+    var ctx=teamContext(g);
+    if(!ctx || ctx.teamId!==teamId || !ctx.isCaptain) return;
+    if(!ctx.consensus){
+      toast(ctx.waitingOn.length?teamWaitingText(g,ctx):'Your team isn\'t in agreement yet',true);
+      updateTeamPickUI(g);
+      return;
+    }
+    answered=true;
+    selVal=ctx.value;
+    var cb=document.getElementById('cbtn');
+    if(cb){cb.disabled=true;cb.textContent='✓ Locked in: '+selVal;cb.style.background='var(--green)';cb.style.opacity='1';}
+    document.querySelectorAll('.opt-btn').forEach(function(b){ if(!b.classList.contains('sel')) b.classList.add('dim-opt'); });
+    updateDialogue(
+      'Question '+(curRound+1)+': '+ROUNDS[curRound].label,
+      'Your team\'s answer is locked in — waiting for other teams...',
+      '',''
+    );
+    gameRef.child('answers/'+curRound+'/'+teamId).set(ctx.value);
   });
 }
 
@@ -2149,7 +2362,7 @@ window.addEventListener('DOMContentLoaded',function(){
   else { if(makerCard) makerCard.remove(); } // never present in the DOM for a normal visitor — not just hidden with CSS
 
   var urlCode=params.get('code');
-  if(urlCode){goPlayer();document.getElementById('jcode').value=urlCode.toUpperCase();return;}
+  if(urlCode){goPlayer();document.getElementById('jcode').value=urlCode.toUpperCase();var sn=sessionStorage.getItem('wuzzle_name');if(sn)document.getElementById('jname').value=sn;return;}
   // Auto-restore if we were mid-game
   var savedCode=sessionStorage.getItem('wuzzle_code');
   var savedName=sessionStorage.getItem('wuzzle_name');
